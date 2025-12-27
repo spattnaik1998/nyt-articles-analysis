@@ -304,12 +304,17 @@ def get_preprocessing_stats(df: pd.DataFrame,
     original_words = df[original_col].str.split().str.len()
     cleaned_words = df[cleaned_col].str.split().str.len()
 
+    # Safe division to avoid division by zero
+    word_reduction = original_words - cleaned_words
+    # Replace zeros in original_words with NaN for safe division, then fill NaN with 0
+    reduction_pct = (word_reduction / original_words.replace(0, np.nan) * 100).fillna(0)
+
     stats = {
         'total_documents': len(df),
         'avg_original_words': original_words.mean(),
         'avg_cleaned_words': cleaned_words.mean(),
-        'avg_word_reduction': (original_words - cleaned_words).mean(),
-        'avg_reduction_pct': ((original_words - cleaned_words) / original_words * 100).mean(),
+        'avg_word_reduction': word_reduction.mean(),
+        'avg_reduction_pct': reduction_pct.mean(),
         'empty_after_cleaning': (cleaned_words == 0).sum(),
     }
 

@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NYT Data Journalism Platform</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .tabs {
+            display: flex;
+            background: #f5f5f5;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            background: #f5f5f5;
+            border: none;
+            font-size: 1.1em;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.3s;
+        }
+
+        .tab:hover {
+            background: #ebebeb;
+        }
+
+        .tab.active {
+            background: white;
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 40px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 6px;
+            font-size: 1em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .results {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .result-item {
+            background: white;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .result-item h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .result-item p {
+            color: #666;
+            line-height: 1.6;
+            margin: 5px 0;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+            font-size: 1.2em;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+            border-left: 4px solid #c33;
+        }
+
+        .success {
+            background: #efe;
+            color: #3c3;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+            border-left: 4px solid #3c3;
+        }
+
+        .job-status {
+            background: white;
+            padding: 20px;
+            margin-top: 20px;
+            border-radius: 8px;
+            border: 2px solid #667eea;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #f0f0f0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 15px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 500;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .stat-card h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .stat-card p {
+            color: #333;
+            font-size: 1.1em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>NYT Data Journalism Platform</h1>
+            <p>Similarity Search, Topic Modeling, and Sentiment Analysis</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('search')">Article Search</button>
+            <button class="tab" onclick="switchTab('topic')">Topic Modeling</button>
+            <button class="tab" onclick="switchTab('sentiment')">Sentiment Analysis</button>
+        </div>
+
+        <!-- Search Tab -->
+        <div id="search-tab" class="tab-content active">
+            <h2>Semantic Article Search</h2>
+            <p style="color: #666; margin-bottom: 20px;">Search for articles using natural language queries</p>
+
+            <div class="form-group">
+                <label for="search-query">Search Query</label>
+                <input type="text" id="search-query" placeholder="e.g., climate change, stock market, technology">
+            </div>
+
+            <div class="form-group">
+                <label for="search-k">Number of Results</label>
+                <input type="number" id="search-k" value="5" min="1" max="20">
+            </div>
+
+            <button onclick="performSearch()">Search Articles</button>
+
+            <div id="search-results"></div>
+        </div>
+
+        <!-- Topic Modeling Tab -->
+        <div id="topic-tab" class="tab-content">
+            <h2>Topic Modeling Analysis</h2>
+            <p style="color: #666; margin-bottom: 20px;">Run BERTopic or LDA on articles from a specific year and section</p>
+
+            <div class="form-group">
+                <label for="topic-year">Year</label>
+                <input type="number" id="topic-year" placeholder="e.g., 2020" min="2000" max="2030">
+            </div>
+
+            <div class="form-group">
+                <label for="topic-section">Section</label>
+                <input type="text" id="topic-section" placeholder="e.g., World, Business, Technology">
+            </div>
+
+            <div class="form-group">
+                <label for="topic-model">Model</label>
+                <select id="topic-model">
+                    <option value="bertopic">BERTopic</option>
+                    <option value="lda">LDA</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="topic-num">Number of Topics</label>
+                <input type="number" id="topic-num" value="10" min="2" max="50">
+            </div>
+
+            <button onclick="runTopicModeling()">Run Topic Modeling</button>
+
+            <div id="topic-results"></div>
+        </div>
+
+        <!-- Sentiment Tab -->
+        <div id="sentiment-tab" class="tab-content">
+            <h2>Sentiment Analysis Report</h2>
+            <p style="color: #666; margin-bottom: 20px;">View precomputed sentiment analysis results</p>
+
+            <div class="form-group">
+                <label for="sentiment-year">Year (Optional)</label>
+                <input type="number" id="sentiment-year" placeholder="Leave empty for all years">
+            </div>
+
+            <div class="form-group">
+                <label for="sentiment-section">Section (Optional)</label>
+                <input type="text" id="sentiment-section" placeholder="Leave empty for all sections">
+            </div>
+
+            <button onclick="getSentimentReport()">Get Report</button>
+
+            <div id="sentiment-results"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            event.target.classList.add('active');
+            document.getElementById(tabName + '-tab').classList.add('active');
+        }
+
+        async function performSearch() {
+            const query = document.getElementById('search-query').value;
+            const k = document.getElementById('search-k').value;
+            const resultsDiv = document.getElementById('search-results');
+
+            if (!query) {
+                resultsDiv.innerHTML = '<div class="error">Please enter a search query</div>';
+                return;
+            }
+
+            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Searching...</div>';
+
+            try {
+                const url = API_BASE + '/search?query=' + encodeURIComponent(query) + '&k=' + k;
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Search failed');
+                }
+
+                let html = '<div class="results"><h3>Found ' + data.total_found + ' articles</h3>';
+
+                data.results.forEach((article, idx) => {
+                    html += '<div class="result-item">';
+                    html += '<h3>' + (idx + 1) + '. ' + (article.headline || 'No headline') + '</h3>';
+                    if (article.snippet) html += '<p><strong>Snippet:</strong> ' + article.snippet + '</p>';
+                    if (article.section_name) html += '<p><strong>Section:</strong> ' + article.section_name + '</p>';
+                    if (article.pub_date) html += '<p><strong>Published:</strong> ' + article.pub_date + '</p>';
+                    if (article.similarity_score !== undefined) {
+                        html += '<p><strong>Similarity:</strong> ' + (article.similarity_score * 100).toFixed(2) + '%</p>';
+                    }
+                    html += '</div>';
+                });
+
+                html += '</div>';
+                resultsDiv.innerHTML = html;
+            } catch (error) {
+                resultsDiv.innerHTML = '<div class="error">Error: ' + error.message + '</div>';
+            }
+        }
+
+        async function runTopicModeling() {
+            const year = parseInt(document.getElementById('topic-year').value);
+            const section = document.getElementById('topic-section').value;
+            const model = document.getElementById('topic-model').value;
+            const numTopics = parseInt(document.getElementById('topic-num').value);
+            const resultsDiv = document.getElementById('topic-results');
+
+            if (!year || !section) {
+                resultsDiv.innerHTML = '<div class="error">Please enter both year and section</div>';
+                return;
+            }
+
+            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Submitting job...</div>';
+
+            try {
+                const response = await fetch(API_BASE + '/topic/run', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({year: year, section: section, model: model, num_topics: numTopics})
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to submit job');
+                }
+
+                resultsDiv.innerHTML = '<div class="success">Job submitted! Job ID: ' + data.job_id + '</div>';
+                pollJobStatus(data.job_id);
+            } catch (error) {
+                resultsDiv.innerHTML = '<div class="error">Error: ' + error.message + '</div>';
+            }
+        }
+
+        async function pollJobStatus(jobId) {
+            const resultsDiv = document.getElementById('topic-results');
+
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch(API_BASE + '/topic/status/' + jobId);
+                    const status = await response.json();
+
+                    const progress = (status.progress || 0) * 100;
+
+                    let html = '<div class="job-status">';
+                    html += '<h3>Job Status: ' + status.status.toUpperCase() + '</h3>';
+                    html += '<div class="progress-bar"><div class="progress-fill" style="width: ' + progress + '%">' + progress.toFixed(0) + '%</div></div>';
+                    html += '<p>' + (status.message || '') + '</p>';
+
+                    if (status.status === 'completed') {
+                        clearInterval(interval);
+                        html += '<p style="margin-top: 15px;"><a href="' + API_BASE + '/topic/result/' + jobId + '" download style="color: #667eea; font-weight: 500;">Download Results (CSV)</a></p>';
+                    } else if (status.status === 'failed') {
+                        clearInterval(interval);
+                        html += '<div class="error" style="margin-top: 15px;">Error: ' + (status.error || 'Unknown error') + '</div>';
+                    }
+
+                    html += '</div>';
+                    resultsDiv.innerHTML = html;
+                } catch (error) {
+                    clearInterval(interval);
+                    resultsDiv.innerHTML = '<div class="error">Error polling status: ' + error.message + '</div>';
+                }
+            }, 2000);
+        }
+
+        async function getSentimentReport() {
+            const year = document.getElementById('sentiment-year').value;
+            const section = document.getElementById('sentiment-section').value;
+            const resultsDiv = document.getElementById('sentiment-results');
+
+            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Loading report...</div>';
+
+            try {
+                let url = API_BASE + '/sentiment/report';
+                const params = [];
+                if (year) params.push('year=' + year);
+                if (section) params.push('section=' + encodeURIComponent(section));
+                if (params.length > 0) url += '?' + params.join('&');
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to get report');
+                }
+
+                let html = '<div class="results">';
+                html += '<h3>Sentiment Analysis Report</h3>';
+                html += '<p><strong>Total Articles:</strong> ' + data.total_articles + '</p>';
+
+                if (data.filters) {
+                    html += '<p><strong>Filters:</strong> ';
+                    if (data.filters.year) html += 'Year: ' + data.filters.year + ' ';
+                    if (data.filters.section) html += 'Section: ' + data.filters.section;
+                    html += '</p>';
+                }
+
+                if (data.models) {
+                    html += '<div class="stats-grid">';
+                    for (const [modelName, modelData] of Object.entries(data.models)) {
+                        html += '<div class="stat-card">';
+                        html += '<h4>' + modelName.toUpperCase() + '</h4>';
+                        html += '<p><strong>Avg Confidence:</strong> ' + (modelData.average_confidence * 100).toFixed(2) + '%</p>';
+                        html += '<p><strong>Classified:</strong> ' + modelData.total_classified + '</p>';
+
+                        if (modelData.label_distribution) {
+                            html += '<p><strong>Distribution:</strong></p><ul style="margin-left: 20px;">';
+                            for (const [label, count] of Object.entries(modelData.label_distribution)) {
+                                html += '<li>' + label + ': ' + count + '</li>';
+                            }
+                            html += '</ul>';
+                        }
+                        html += '</div>';
+                    }
+                    html += '</div>';
+                }
+
+                html += '</div>';
+                resultsDiv.innerHTML = html;
+            } catch (error) {
+                resultsDiv.innerHTML = '<div class="error">Error: ' + error.message + '</div>';
+            }
+        }
+    </script>
+</body>
+</html>
