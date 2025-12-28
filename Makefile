@@ -59,6 +59,15 @@ format:
 # Clean build artifacts and virtual environment
 clean:
 	@echo "Cleaning up..."
+ifeq ($(OS),Windows_NT)
+	@if exist $(VENV_DIR) rmdir /s /q $(VENV_DIR)
+	@if exist __pycache__ rmdir /s /q __pycache__
+	@if exist .pytest_cache rmdir /s /q .pytest_cache
+	@if exist .coverage del /q .coverage
+	@if exist htmlcov rmdir /s /q htmlcov
+	@for /d /r . %%d in (__pycache__) do @if exist "%%d" rmdir /s /q "%%d"
+	@del /s /q *.pyc 2>nul
+else
 	rm -rf $(VENV_DIR)
 	rm -rf __pycache__
 	rm -rf .pytest_cache
@@ -69,6 +78,7 @@ clean:
 	rm -rf build
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
+endif
 	@echo "Cleanup complete!"
 
 # Setup everything

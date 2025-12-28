@@ -5,6 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NYT Data Journalism Platform</title>
     <style>
+        :root {
+            --primary-color: #2563eb;
+            --primary-dark: #1e40af;
+            --primary-light: #3b82f6;
+            --secondary-color: #7c3aed;
+            --accent-color: #06b6d4;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+            --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -12,169 +35,231 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
+            color: var(--gray-800);
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             background: white;
-            border-radius: 12px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            border-radius: 16px;
+            box-shadow: var(--shadow-xl);
             overflow: hidden;
         }
 
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
             color: white;
-            padding: 30px;
+            padding: 40px 30px;
             text-align: center;
+            position: relative;
+        }
+
+        .header::after {
+            content: '';
+            position: absolute;
+            bottom: -20px;
+            left: 0;
+            right: 0;
+            height: 20px;
+            background: inherit;
+            clip-path: polygon(0 0, 100% 0, 100% 100%, 0 0);
         }
 
         .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
+            font-size: 2.75em;
+            margin-bottom: 12px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
         }
 
         .header p {
-            font-size: 1.1em;
-            opacity: 0.9;
+            font-size: 1.15em;
+            opacity: 0.95;
+            font-weight: 400;
         }
 
         .tabs {
             display: flex;
-            background: #f5f5f5;
-            border-bottom: 2px solid #e0e0e0;
+            background: var(--gray-50);
+            border-bottom: 2px solid var(--gray-200);
+            padding: 0 20px;
+            gap: 8px;
+            margin-top: 20px;
         }
 
         .tab {
-            flex: 1;
-            padding: 20px;
+            padding: 18px 28px;
             text-align: center;
             cursor: pointer;
-            background: #f5f5f5;
+            background: transparent;
             border: none;
-            font-size: 1.1em;
-            font-weight: 500;
-            color: #666;
-            transition: all 0.3s;
+            font-size: 1em;
+            font-weight: 600;
+            color: var(--gray-600);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 8px 8px 0 0;
+            position: relative;
         }
 
         .tab:hover {
-            background: #ebebeb;
+            background: var(--gray-100);
+            color: var(--primary-color);
         }
 
         .tab.active {
             background: white;
-            color: #667eea;
-            border-bottom: 3px solid #667eea;
+            color: var(--primary-color);
+            border-bottom: 3px solid var(--primary-color);
         }
 
         .tab-content {
             display: none;
             padding: 40px;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .tab-content.active {
             display: block;
         }
 
+        .section-header {
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--gray-100);
+        }
+
+        .section-header h2 {
+            font-size: 2em;
+            color: var(--gray-900);
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+
+        .section-header p {
+            color: var(--gray-600);
+            font-size: 1.05em;
+        }
+
         .form-group {
-            margin-bottom: 25px;
+            margin-bottom: 28px;
         }
 
         label {
             display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-            color: #333;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: var(--gray-700);
+            font-size: 0.95em;
         }
 
         input[type="text"],
         input[type="number"],
         select {
             width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 6px;
+            padding: 14px 16px;
+            border: 2px solid var(--gray-200);
+            border-radius: 8px;
             font-size: 1em;
-            transition: border-color 0.3s;
+            transition: all 0.2s;
+            background: white;
         }
 
         input[type="text"]:focus,
         input[type="number"]:focus,
         select:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
         }
 
         button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
             color: white;
             border: none;
-            padding: 12px 30px;
-            border-radius: 6px;
+            padding: 14px 32px;
+            border-radius: 8px;
             font-size: 1em;
-            font-weight: 500;
+            font-weight: 600;
             cursor: pointer;
-            transition: transform 0.2s;
+            transition: all 0.2s;
+            box-shadow: var(--shadow-md);
         }
 
         button:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            box-shadow: var(--shadow-lg);
         }
 
         button:active {
             transform: translateY(0);
         }
 
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
         .results {
-            margin-top: 30px;
-            padding: 20px;
-            background: #f9f9f9;
-            border-radius: 8px;
-            max-height: 600px;
+            margin-top: 35px;
+            padding: 25px;
+            background: var(--gray-50);
+            border-radius: 12px;
+            max-height: 700px;
             overflow-y: auto;
         }
 
         .result-item {
             background: white;
-            padding: 20px;
-            margin-bottom: 15px;
-            border-radius: 6px;
-            border-left: 4px solid #667eea;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 24px;
+            margin-bottom: 16px;
+            border-radius: 10px;
+            border-left: 5px solid var(--primary-color);
+            box-shadow: var(--shadow-sm);
+            transition: all 0.2s;
+        }
+
+        .result-item:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateX(4px);
         }
 
         .result-item h3 {
-            color: #333;
-            margin-bottom: 10px;
+            color: var(--gray-900);
+            margin-bottom: 12px;
+            font-size: 1.2em;
+            font-weight: 600;
         }
 
         .result-item p {
-            color: #666;
-            line-height: 1.6;
-            margin: 5px 0;
+            color: var(--gray-700);
+            line-height: 1.7;
+            margin: 8px 0;
         }
 
         .loading {
             text-align: center;
-            padding: 40px;
-            color: #667eea;
-            font-size: 1.2em;
+            padding: 50px;
+            color: var(--primary-color);
+            font-size: 1.1em;
         }
 
         .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
+            border: 4px solid var(--gray-200);
+            border-top: 4px solid var(--primary-color);
             border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
+            width: 50px;
+            height: 50px;
+            animation: spin 0.8s linear infinite;
             margin: 20px auto;
         }
 
@@ -184,74 +269,170 @@
         }
 
         .error {
-            background: #fee;
-            color: #c33;
-            padding: 15px;
-            border-radius: 6px;
-            margin-top: 15px;
-            border-left: 4px solid #c33;
+            background: #fef2f2;
+            color: var(--danger-color);
+            padding: 16px 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border-left: 5px solid var(--danger-color);
+            font-weight: 500;
         }
 
         .success {
-            background: #efe;
-            color: #3c3;
-            padding: 15px;
-            border-radius: 6px;
-            margin-top: 15px;
-            border-left: 4px solid #3c3;
-        }
-
-        .job-status {
-            background: white;
-            padding: 20px;
-            margin-top: 20px;
+            background: #f0fdf4;
+            color: var(--success-color);
+            padding: 16px 20px;
             border-radius: 8px;
-            border: 2px solid #667eea;
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 30px;
-            background: #f0f0f0;
-            border-radius: 15px;
-            overflow: hidden;
-            margin: 15px 0;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-            transition: width 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
+            margin-top: 20px;
+            border-left: 5px solid var(--success-color);
             font-weight: 500;
         }
 
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             gap: 20px;
-            margin-top: 20px;
+            margin-top: 25px;
         }
 
         .stat-card {
             background: white;
-            padding: 20px;
-            border-radius: 8px;
-            border-left: 4px solid #667eea;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 24px;
+            border-radius: 10px;
+            border-left: 5px solid var(--primary-color);
+            box-shadow: var(--shadow-sm);
+            transition: all 0.2s;
+        }
+
+        .stat-card:hover {
+            box-shadow: var(--shadow-md);
         }
 
         .stat-card h4 {
-            color: #667eea;
-            margin-bottom: 10px;
+            color: var(--primary-color);
+            margin-bottom: 12px;
+            font-size: 1.1em;
+            font-weight: 700;
         }
 
         .stat-card p {
-            color: #333;
-            font-size: 1.1em;
+            color: var(--gray-700);
+            font-size: 1em;
+            line-height: 1.6;
+        }
+
+        /* Visualizations specific styles */
+        .viz-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .wordcloud-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: var(--shadow-md);
+            transition: all 0.3s;
+        }
+
+        .wordcloud-card:hover {
+            box-shadow: var(--shadow-lg);
+            transform: translateY(-4px);
+        }
+
+        .wordcloud-card h3 {
+            color: var(--gray-900);
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            font-weight: 700;
+        }
+
+        .wordcloud-card img {
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid var(--gray-200);
+        }
+
+        .wordcloud-keywords {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 2px solid var(--gray-100);
+        }
+
+        .keyword-tag {
+            display: inline-block;
+            background: var(--primary-light);
+            color: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            margin: 4px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+
+        .viz-controls {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 30px;
+        }
+
+        .viz-controls h3 {
+            margin-bottom: 20px;
+            color: var(--gray-900);
+            font-size: 1.3em;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        /* Slider styling */
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 5px;
+            background: var(--gray-200);
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            cursor: pointer;
+            box-shadow: var(--shadow-md);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            cursor: pointer;
+            box-shadow: var(--shadow-md);
+        }
+
+        .info-banner {
+            background: linear-gradient(135deg, #e0e7ff 0%, #ddd6fe 100%);
+            color: var(--gray-800);
+            padding: 20px 24px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            border-left: 5px solid var(--secondary-color);
+        }
+
+        .info-banner strong {
+            color: var(--secondary-color);
         }
     </style>
 </head>
@@ -259,28 +440,45 @@
     <div class="container">
         <div class="header">
             <h1>NYT Data Journalism Platform</h1>
-            <p>Similarity Search, Topic Modeling, and Sentiment Analysis</p>
+            <p>Advanced Analytics & Visualization for 20,000+ NYT Articles</p>
         </div>
 
         <div class="tabs">
             <button class="tab active" onclick="switchTab('search')">Article Search</button>
             <button class="tab" onclick="switchTab('topic')">Topic Modeling</button>
+            <button class="tab" onclick="switchTab('visualizations')">Visualizations</button>
             <button class="tab" onclick="switchTab('sentiment')">Sentiment Analysis</button>
         </div>
 
         <!-- Search Tab -->
         <div id="search-tab" class="tab-content active">
-            <h2>Semantic Article Search</h2>
-            <p style="color: #666; margin-bottom: 20px;">Search for articles using natural language queries</p>
-
-            <div class="form-group">
-                <label for="search-query">Search Query</label>
-                <input type="text" id="search-query" placeholder="e.g., climate change, stock market, technology">
+            <div class="section-header">
+                <h2>Hybrid Article Search</h2>
+                <p>Search using semantic similarity and keyword matching with BM25 algorithm</p>
             </div>
 
             <div class="form-group">
-                <label for="search-k">Number of Results</label>
-                <input type="number" id="search-k" value="5" min="1" max="20">
+                <label for="search-query">Search Query</label>
+                <input type="text" id="search-query" placeholder="e.g., climate change policy, stock market trends, technology innovation">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="search-k">Number of Results</label>
+                    <input type="number" id="search-k" value="5" min="1" max="20">
+                </div>
+
+                <div class="form-group">
+                    <label for="search-alpha">
+                        Search Mode: <span id="search-mode-label" style="color: var(--success-color);">Balanced Hybrid</span>
+                    </label>
+                    <input type="range" id="search-alpha" min="0" max="100" value="50"
+                           oninput="updateSearchModeLabel(this.value)">
+                    <div style="display: flex; justify-content: space-between; color: var(--gray-600); font-size: 0.9em; margin-top: 8px;">
+                        <span>Keyword Only</span>
+                        <span>Semantic Only</span>
+                    </div>
+                </div>
             </div>
 
             <button onclick="performSearch()">Search Articles</button>
@@ -290,30 +488,38 @@
 
         <!-- Topic Modeling Tab -->
         <div id="topic-tab" class="tab-content">
-            <h2>Topic Modeling Analysis</h2>
-            <p style="color: #666; margin-bottom: 20px;">Run BERTopic or LDA on articles from a specific year and section</p>
-
-            <div class="form-group">
-                <label for="topic-year">Year</label>
-                <input type="number" id="topic-year" placeholder="e.g., 2020" min="2000" max="2030">
+            <div class="section-header">
+                <h2>Topic Modeling Analysis</h2>
+                <p>Discover themes and trends using LDA or BERTopic algorithms</p>
             </div>
 
-            <div class="form-group">
-                <label for="topic-section">Section</label>
-                <input type="text" id="topic-section" placeholder="e.g., World, Business, Technology">
-            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="topic-year">Year</label>
+                    <select id="topic-year">
+                        <option value="">Loading years...</option>
+                    </select>
+                </div>
 
-            <div class="form-group">
-                <label for="topic-model">Model</label>
-                <select id="topic-model">
-                    <option value="bertopic">BERTopic</option>
-                    <option value="lda">LDA</option>
-                </select>
-            </div>
+                <div class="form-group">
+                    <label for="topic-section">Section</label>
+                    <select id="topic-section">
+                        <option value="">Loading sections...</option>
+                    </select>
+                </div>
 
-            <div class="form-group">
-                <label for="topic-num">Number of Topics</label>
-                <input type="number" id="topic-num" value="10" min="2" max="50">
+                <div class="form-group">
+                    <label for="topic-model">Model</label>
+                    <select id="topic-model">
+                        <option value="bertopic">BERTopic</option>
+                        <option value="lda">LDA</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="topic-num">Number of Topics</label>
+                    <input type="number" id="topic-num" value="10" min="2" max="50">
+                </div>
             </div>
 
             <button onclick="runTopicModeling()">Run Topic Modeling</button>
@@ -321,19 +527,75 @@
             <div id="topic-results"></div>
         </div>
 
-        <!-- Sentiment Tab -->
-        <div id="sentiment-tab" class="tab-content">
-            <h2>Sentiment Analysis Report</h2>
-            <p style="color: #666; margin-bottom: 20px;">View precomputed sentiment analysis results</p>
-
-            <div class="form-group">
-                <label for="sentiment-year">Year (Optional)</label>
-                <input type="number" id="sentiment-year" placeholder="Leave empty for all years">
+        <!-- Visualizations Tab -->
+        <div id="visualizations-tab" class="tab-content">
+            <div class="section-header">
+                <h2>Topic Visualizations</h2>
+                <p>Generate wordclouds and explore topic distributions visually</p>
             </div>
 
-            <div class="form-group">
-                <label for="sentiment-section">Section (Optional)</label>
-                <input type="text" id="sentiment-section" placeholder="Leave empty for all sections">
+            <div class="info-banner">
+                <strong>How it works:</strong> Select a year and section to analyze, then generate wordclouds for each discovered topic. Larger words indicate higher importance in the topic.
+            </div>
+
+            <div class="viz-controls">
+                <h3>Generation Controls</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="viz-year">Year</label>
+                        <select id="viz-year">
+                            <option value="">Loading years...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="viz-section">Section</label>
+                        <select id="viz-section">
+                            <option value="">Loading sections...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="viz-model">Model</label>
+                        <select id="viz-model">
+                            <option value="lda">LDA</option>
+                            <option value="bertopic">BERTopic</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="viz-num-topics">Number of Topics</label>
+                        <input type="number" id="viz-num-topics" value="6" min="2" max="12">
+                    </div>
+                </div>
+
+                <button onclick="generateWordclouds()" style="margin-top: 15px;">Generate Wordclouds</button>
+            </div>
+
+            <div id="viz-results"></div>
+        </div>
+
+        <!-- Sentiment Tab -->
+        <div id="sentiment-tab" class="tab-content">
+            <div class="section-header">
+                <h2>Sentiment Analysis Report</h2>
+                <p>Multi-model sentiment analysis with FinBERT, DistilRoBERTa, and PoliBERT</p>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="sentiment-year">Year (Optional)</label>
+                    <select id="sentiment-year">
+                        <option value="">All Years</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="sentiment-section">Section (Optional)</label>
+                    <select id="sentiment-section">
+                        <option value="">All Sections</option>
+                    </select>
+                </div>
             </div>
 
             <button onclick="getSentimentReport()">Get Report</button>
@@ -345,6 +607,62 @@
     <script>
         const API_BASE = window.location.origin;
 
+        // Load available filters when page loads
+        window.addEventListener('DOMContentLoaded', async function() {
+            await loadFilters();
+        });
+
+        async function loadFilters() {
+            try {
+                const response = await fetch(API_BASE + '/filters');
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Populate year dropdowns
+                    const yearSelects = ['topic-year', 'sentiment-year', 'viz-year'];
+                    yearSelects.forEach(selectId => {
+                        const select = document.getElementById(selectId);
+                        if (selectId === 'sentiment-year') {
+                            select.innerHTML = '<option value="">All Years</option>';
+                        } else {
+                            select.innerHTML = '';
+                        }
+
+                        data.years.forEach(year => {
+                            const option = document.createElement('option');
+                            option.value = year;
+                            option.textContent = year;
+                            select.appendChild(option);
+                        });
+                    });
+
+                    // Populate section dropdowns
+                    const sectionSelects = ['topic-section', 'sentiment-section', 'viz-section'];
+                    sectionSelects.forEach(selectId => {
+                        const select = document.getElementById(selectId);
+                        if (selectId === 'sentiment-section') {
+                            select.innerHTML = '<option value="">All Sections</option>';
+                        } else {
+                            select.innerHTML = '';
+                        }
+
+                        data.sections.forEach(section => {
+                            const option = document.createElement('option');
+                            option.value = section;
+                            option.textContent = section;
+                            select.appendChild(option);
+                        });
+                    });
+
+                    console.log('✓ Loaded filters:', data);
+                } else {
+                    console.error('Failed to load filters:', data);
+                }
+            } catch (error) {
+                console.error('Error loading filters:', error);
+            }
+        }
+
         function switchTab(tabName) {
             document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
@@ -353,9 +671,33 @@
             document.getElementById(tabName + '-tab').classList.add('active');
         }
 
+        function updateSearchModeLabel(value) {
+            const alpha = value / 100;
+            const label = document.getElementById('search-mode-label');
+
+            if (alpha === 0) {
+                label.textContent = 'Pure Keyword (BM25)';
+                label.style.color = '#ef4444';
+            } else if (alpha === 1) {
+                label.textContent = 'Pure Semantic';
+                label.style.color = '#3b82f6';
+            } else if (alpha < 0.3) {
+                label.textContent = 'Keyword-Heavy';
+                label.style.color = '#f59e0b';
+            } else if (alpha > 0.7) {
+                label.textContent = 'Semantic-Heavy';
+                label.style.color = '#7c3aed';
+            } else {
+                label.textContent = 'Balanced Hybrid';
+                label.style.color = '#10b981';
+            }
+        }
+
         async function performSearch() {
             const query = document.getElementById('search-query').value;
             const k = document.getElementById('search-k').value;
+            const alphaSlider = document.getElementById('search-alpha').value;
+            const alpha = alphaSlider / 100;
             const resultsDiv = document.getElementById('search-results');
 
             if (!query) {
@@ -366,7 +708,7 @@
             resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Searching...</div>';
 
             try {
-                const url = API_BASE + '/search?query=' + encodeURIComponent(query) + '&k=' + k;
+                const url = API_BASE + '/search?query=' + encodeURIComponent(query) + '&k=' + k + '&alpha=' + alpha;
                 const response = await fetch(url);
                 const data = await response.json();
 
@@ -374,7 +716,9 @@
                     throw new Error(data.detail || 'Search failed');
                 }
 
-                let html = '<div class="results"><h3>Found ' + data.total_found + ' articles</h3>';
+                let html = '<div class="results">';
+                html += '<h3 style="margin-bottom: 15px;">Found ' + data.total_found + ' articles</h3>';
+                html += '<p style="color: var(--gray-600); margin-bottom: 20px;"><strong>Search Mode:</strong> ' + data.search_mode + ' (α=' + data.alpha.toFixed(2) + ')</p>';
 
                 data.results.forEach((article, idx) => {
                     html += '<div class="result-item">';
@@ -382,9 +726,15 @@
                     if (article.snippet) html += '<p><strong>Snippet:</strong> ' + article.snippet + '</p>';
                     if (article.section_name) html += '<p><strong>Section:</strong> ' + article.section_name + '</p>';
                     if (article.pub_date) html += '<p><strong>Published:</strong> ' + article.pub_date + '</p>';
-                    if (article.similarity_score !== undefined) {
-                        html += '<p><strong>Similarity:</strong> ' + (article.similarity_score * 100).toFixed(2) + '%</p>';
+
+                    html += '<p style="font-size: 0.9em; color: var(--gray-600); margin-top: 10px;">';
+                    html += '<strong>Hybrid Score:</strong> ' + (article.hybrid_score * 100).toFixed(2) + '%';
+                    if (article.semantic_score !== null && article.keyword_score !== null) {
+                        html += ' (Semantic: ' + (article.semantic_score * 100).toFixed(2) + '%, ';
+                        html += 'Keyword: ' + (article.keyword_score * 100).toFixed(2) + '%)';
                     }
+                    html += '</p>';
+
                     html += '</div>';
                 });
 
@@ -403,11 +753,11 @@
             const resultsDiv = document.getElementById('topic-results');
 
             if (!year || !section) {
-                resultsDiv.innerHTML = '<div class="error">Please enter both year and section</div>';
+                resultsDiv.innerHTML = '<div class="error">Please select both year and section</div>';
                 return;
             }
 
-            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Submitting job...</div>';
+            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Running topic modeling...</div>';
 
             try {
                 const response = await fetch(API_BASE + '/topic/run', {
@@ -419,46 +769,75 @@
                 const data = await response.json();
 
                 if (!response.ok) {
-                    throw new Error(data.detail || 'Failed to submit job');
+                    throw new Error(data.detail || 'Failed to run topic modeling');
                 }
 
-                resultsDiv.innerHTML = '<div class="success">Job submitted! Job ID: ' + data.job_id + '</div>';
-                pollJobStatus(data.job_id);
+                let html = '<div class="success">' + data.message + '</div>';
+
+                if (data.topics && data.topics.length > 0) {
+                    html += '<div class="results" style="margin-top: 20px;">';
+                    html += '<h3 style="margin-bottom: 20px;">Discovered Topics:</h3>';
+
+                    data.topics.forEach(topic => {
+                        html += '<div class="result-item">';
+                        html += '<h4 style="color: var(--primary-color); margin-bottom: 10px;">' + topic.topic_name + '</h4>';
+                        html += '<p><strong>Keywords:</strong> ' + topic.words.join(', ') + '</p>';
+                        html += '</div>';
+                    });
+
+                    html += '</div>';
+                }
+
+                resultsDiv.innerHTML = html;
             } catch (error) {
                 resultsDiv.innerHTML = '<div class="error">Error: ' + error.message + '</div>';
             }
         }
 
-        async function pollJobStatus(jobId) {
-            const resultsDiv = document.getElementById('topic-results');
+        async function generateWordclouds() {
+            const year = parseInt(document.getElementById('viz-year').value);
+            const section = document.getElementById('viz-section').value;
+            const model = document.getElementById('viz-model').value;
+            const numTopics = parseInt(document.getElementById('viz-num-topics').value);
+            const resultsDiv = document.getElementById('viz-results');
 
-            const interval = setInterval(async () => {
-                try {
-                    const response = await fetch(API_BASE + '/topic/status/' + jobId);
-                    const status = await response.json();
+            if (!year || !section) {
+                resultsDiv.innerHTML = '<div class="error">Please select both year and section</div>';
+                return;
+            }
 
-                    const progress = (status.progress || 0) * 100;
+            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Generating wordclouds... This may take a moment.</div>';
 
-                    let html = '<div class="job-status">';
-                    html += '<h3>Job Status: ' + status.status.toUpperCase() + '</h3>';
-                    html += '<div class="progress-bar"><div class="progress-fill" style="width: ' + progress + '%">' + progress.toFixed(0) + '%</div></div>';
-                    html += '<p>' + (status.message || '') + '</p>';
+            try {
+                const url = API_BASE + '/visualizations/wordclouds?year=' + year + '&section=' + encodeURIComponent(section) + '&model=' + model + '&num_topics=' + numTopics;
+                const response = await fetch(url);
+                const data = await response.json();
 
-                    if (status.status === 'completed') {
-                        clearInterval(interval);
-                        html += '<p style="margin-top: 15px;"><a href="' + API_BASE + '/topic/result/' + jobId + '" download style="color: #667eea; font-weight: 500;">Download Results (CSV)</a></p>';
-                    } else if (status.status === 'failed') {
-                        clearInterval(interval);
-                        html += '<div class="error" style="margin-top: 15px;">Error: ' + (status.error || 'Unknown error') + '</div>';
-                    }
-
-                    html += '</div>';
-                    resultsDiv.innerHTML = html;
-                } catch (error) {
-                    clearInterval(interval);
-                    resultsDiv.innerHTML = '<div class="error">Error polling status: ' + error.message + '</div>';
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to generate wordclouds');
                 }
-            }, 2000);
+
+                let html = '<div class="success">Generated ' + data.wordclouds.length + ' wordclouds from ' + data.total_articles + ' articles</div>';
+                html += '<div class="viz-grid">';
+
+                data.wordclouds.forEach(wc => {
+                    html += '<div class="wordcloud-card">';
+                    html += '<h3>' + wc.topic_name + '</h3>';
+                    html += '<img src="' + wc.image + '" alt="Wordcloud for ' + wc.topic_name + '">';
+                    html += '<div class="wordcloud-keywords">';
+                    html += '<strong style="color: var(--gray-700); display: block; margin-bottom: 10px;">Top Keywords:</strong>';
+                    wc.top_words.forEach(word => {
+                        html += '<span class="keyword-tag">' + word + '</span>';
+                    });
+                    html += '</div>';
+                    html += '</div>';
+                });
+
+                html += '</div>';
+                resultsDiv.innerHTML = html;
+            } catch (error) {
+                resultsDiv.innerHTML = '<div class="error">Error: ' + error.message + '</div>';
+            }
         }
 
         async function getSentimentReport() {
@@ -471,8 +850,8 @@
             try {
                 let url = API_BASE + '/sentiment/report';
                 const params = [];
-                if (year) params.push('year=' + year);
-                if (section) params.push('section=' + encodeURIComponent(section));
+                if (year && year !== '') params.push('year=' + year);
+                if (section && section !== '') params.push('section=' + encodeURIComponent(section));
                 if (params.length > 0) url += '?' + params.join('&');
 
                 const response = await fetch(url);
@@ -483,28 +862,28 @@
                 }
 
                 let html = '<div class="results">';
-                html += '<h3>Sentiment Analysis Report</h3>';
-                html += '<p><strong>Total Articles:</strong> ' + data.total_articles + '</p>';
+                html += '<h3 style="margin-bottom: 15px;">Sentiment Analysis Report</h3>';
+                html += '<p><strong>Total Articles:</strong> ' + data.total_articles.toLocaleString() + '</p>';
 
-                if (data.filters) {
-                    html += '<p><strong>Filters:</strong> ';
+                if (data.filters && Object.keys(data.filters).length > 0) {
+                    html += '<p style="margin-top: 10px;"><strong>Filters:</strong> ';
                     if (data.filters.year) html += 'Year: ' + data.filters.year + ' ';
                     if (data.filters.section) html += 'Section: ' + data.filters.section;
                     html += '</p>';
                 }
 
                 if (data.models) {
-                    html += '<div class="stats-grid">';
+                    html += '<div class="stats-grid" style="margin-top: 25px;">';
                     for (const [modelName, modelData] of Object.entries(data.models)) {
                         html += '<div class="stat-card">';
                         html += '<h4>' + modelName.toUpperCase() + '</h4>';
                         html += '<p><strong>Avg Confidence:</strong> ' + (modelData.average_confidence * 100).toFixed(2) + '%</p>';
-                        html += '<p><strong>Classified:</strong> ' + modelData.total_classified + '</p>';
+                        html += '<p><strong>Classified:</strong> ' + modelData.total_classified.toLocaleString() + '</p>';
 
                         if (modelData.label_distribution) {
-                            html += '<p><strong>Distribution:</strong></p><ul style="margin-left: 20px;">';
+                            html += '<p style="margin-top: 12px;"><strong>Distribution:</strong></p><ul style="margin-left: 20px; margin-top: 8px;">';
                             for (const [label, count] of Object.entries(modelData.label_distribution)) {
-                                html += '<li>' + label + ': ' + count + '</li>';
+                                html += '<li>' + label + ': ' + count.toLocaleString() + '</li>';
                             }
                             html += '</ul>';
                         }

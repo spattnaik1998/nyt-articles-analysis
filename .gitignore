@@ -51,21 +51,32 @@ notebooks/data_journalism_original.py
 PRD_document.docx
 prd_text.txt
 
-# Data files
+# Data files (large datasets and embeddings)
 data/*.csv
 data/*.parquet
 data/*.json
 data/*.pkl
 data/*.h5
+data/*.npy
+data/embeddings.npy
+data/embeddings_mapping.csv
+data/nyt_articles.csv
+data/preprocessed.parquet
+data/api_results/
 !data/.gitkeep
 
-# Model files
+# Model files and caches
 *.bin
 *.pt
 *.pth
 *.onnx
 models/
 checkpoints/
+
+# Hugging Face transformers cache
+.cache/
+transformers_cache/
+torch_extensions/
 
 # Environment variables
 .env
@@ -89,6 +100,18 @@ Thumbs.db
 *.tmp
 temp/
 tmp/
+
+# Generated visualizations
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+!docs/**/*.png
+!docs/**/*.jpg
+results/
+outputs/
+visualizations/
 
 # Documentation
 docs/_build/

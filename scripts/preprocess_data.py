@@ -19,7 +19,7 @@ from tqdm import tqdm
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.preprocess.text import clean_text, compute_text_stats
+from src.preprocess.text import clean_text
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -120,6 +120,11 @@ def preprocess_nyt_dataset(
             logger.info(f"  {old} -> {new}")
         df = df.rename(columns=column_mapping)
 
+        # Handle duplicate columns by keeping first occurrence
+        if df.columns.duplicated().any():
+            logger.warning("Duplicate columns detected after renaming. Keeping first occurrence.")
+            df = df.loc[:, ~df.columns.duplicated()]
+
     # Ensure required columns exist
     required_columns = ['_id', 'headline', 'pub_date']
     missing_required = [col for col in required_columns if col not in df.columns]
@@ -216,18 +221,20 @@ def preprocess_nyt_dataset(
 
     # Compute text statistics
     logger.info("\nComputing text statistics...")
-    stats_df = compute_text_stats(df, text_col='cleaned_text')
+    df['word_count'] = df['cleaned_text'].str.split().str.len()
+    df['char_count'] = df['cleaned_text'].str.len()
+    df['sentence_count'] = df['cleaned_text'].str.count(r'[.!?]') + 1
 
     # Show statistics
     logger.info("\nText Statistics:")
-    logger.info(f"  Avg word count: {stats_df['word_count'].mean():.2f}")
-    logger.info(f"  Avg char count: {stats_df['char_count'].mean():.2f}")
-    logger.info(f"  Avg sentence count: {stats_df['sentence_count'].mean():.2f}")
+    logger.info(f"  Avg word count: {df['word_count'].mean():.2f}")
+    logger.info(f"  Avg char count: {df['char_count'].mean():.2f}")
+    logger.info(f"  Avg sentence count: {df['sentence_count'].mean():.2f}")
 
     # Filter out very short articles (less than 10 words)
     min_words = 10
     before_filter = len(df)
-    df = df[stats_df['word_count'] >= min_words].reset_index(drop=True)
+    df = df[df['word_count'] >= min_words].reset_index(drop=True)
     after_filter = len(df)
     removed = before_filter - after_filter
 
