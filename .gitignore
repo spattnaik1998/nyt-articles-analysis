@@ -60,8 +60,12 @@ data/*.h5
 data/*.npy
 data/embeddings.npy
 data/embeddings_mapping.csv
+data/embeddings_500k.npy
+data/embeddings_500k_mapping.csv
 data/nyt_articles.csv
+data/nyt_articles_500K.csv
 data/preprocessed.parquet
+data/preprocessed_500K.parquet
 data/api_results/
 !data/.gitkeep
 

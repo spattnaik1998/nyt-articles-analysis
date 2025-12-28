@@ -57,24 +57,49 @@ async def load_data():
     global data_df, embeddings, embeddings_mapping, bm25
 
     try:
-        # Load preprocessed data
-        data_path = Path("data/preprocessed.parquet")
-        if data_path.exists():
+        # Load preprocessed data - Try 500K first, fallback to 20K
+        data_path_500k = Path("data/preprocessed_500K.parquet")
+        data_path_20k = Path("data/preprocessed.parquet")
+
+        if data_path_500k.exists():
+            data_path = data_path_500k
             data_df = pd.read_parquet(data_path)
-            print(f"✓ Loaded {len(data_df):,} articles from {data_path}")
+            print(f"✓ Loaded {len(data_df):,} articles from {data_path} (500K dataset)")
+        elif data_path_20k.exists():
+            data_path = data_path_20k
+            data_df = pd.read_parquet(data_path)
+            print(f"✓ Loaded {len(data_df):,} articles from {data_path} (20K dataset)")
         else:
-            print(f"⚠ Warning: {data_path} not found")
+            print(f"⚠ Warning: No preprocessed data found")
 
-        # Load embeddings
-        embeddings_path = Path("data/embeddings.npy")
-        mapping_path = Path("data/embeddings_mapping.csv")
+        # Add year and month columns if they don't exist
+        if data_df is not None and 'year' not in data_df.columns:
+            data_df['pub_date'] = pd.to_datetime(data_df['pub_date'], errors='coerce')
+            data_df['year'] = data_df['pub_date'].dt.year
+            data_df['month'] = data_df['pub_date'].dt.month
+            print(f"✓ Added year and month columns from pub_date")
 
-        if embeddings_path.exists() and mapping_path.exists():
+        # Load embeddings - Try 500K first, fallback to 20K
+        embeddings_path_500k = Path("data/embeddings_500k.npy")
+        mapping_path_500k = Path("data/embeddings_500k_mapping.csv")
+        embeddings_path_20k = Path("data/embeddings.npy")
+        mapping_path_20k = Path("data/embeddings_mapping.csv")
+
+        if embeddings_path_500k.exists() and mapping_path_500k.exists():
+            embeddings_path = embeddings_path_500k
+            mapping_path = mapping_path_500k
             embeddings = np.load(embeddings_path)
             embeddings_mapping = pd.read_csv(mapping_path)
-            print(f"✓ Loaded embeddings: {embeddings.shape}")
+            print(f"✓ Loaded embeddings: {embeddings.shape} (500K dataset)")
+        elif embeddings_path_20k.exists() and mapping_path_20k.exists():
+            embeddings_path = embeddings_path_20k
+            mapping_path = mapping_path_20k
+            embeddings = np.load(embeddings_path)
+            embeddings_mapping = pd.read_csv(mapping_path)
+            print(f"✓ Loaded embeddings: {embeddings.shape} (20K dataset)")
         else:
-            print(f"⚠ Warning: Embeddings not found at {embeddings_path}")
+            print(f"⚠ Warning: No embeddings found")
+
 
         # Build BM25 index for keyword search
         if data_df is not None:
@@ -599,8 +624,13 @@ async def get_available_filters():
     if data_df is None:
         raise HTTPException(status_code=503, detail="Data not loaded")
 
-    # Get unique years sorted
-    years = sorted(data_df['year'].dropna().unique().astype(int).tolist())
+    # Get unique years sorted (extract from pub_date if year column doesn't exist)
+    if 'year' in data_df.columns:
+        years = sorted(data_df['year'].dropna().unique().astype(int).tolist())
+    else:
+        # Extract year from pub_date
+        pub_dates = pd.to_datetime(data_df['pub_date'], errors='coerce')
+        years = sorted(pub_dates.dt.year.dropna().unique().astype(int).tolist())
 
     # Get sections sorted by article count
     sections = data_df['section_name'].value_counts().index.tolist()

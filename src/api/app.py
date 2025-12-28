@@ -74,7 +74,7 @@ class TopicJobRequest(BaseModel):
     section: str = Field(..., description="Section to analyze (e.g., 'World', 'Business')")
     model: str = Field(default="bertopic", description="Model to use: 'bertopic' or 'lda'")
     num_topics: int = Field(default=10, description="Number of topics", ge=2, le=50)
-    input_file: Optional[str] = Field(default="data/preprocessed.parquet", description="Input data file")
+    input_file: Optional[str] = Field(default="data/preprocessed_500K.parquet", description="Input data file")
 
 
 class TopicJobResponse(BaseModel):
@@ -288,8 +288,8 @@ async def health_check():
 async def search_articles(
     query: str = Query(..., description="Search query text"),
     k: int = Query(5, ge=1, le=100, description="Number of results to return"),
-    embeddings_path: str = Query("data/embeddings.npy", description="Path to embeddings file"),
-    mapping_path: str = Query("data/embeddings_mapping.csv", description="Path to mapping file"),
+    embeddings_path: str = Query("data/embeddings_500k.npy", description="Path to embeddings file"),
+    mapping_path: str = Query("data/embeddings_500k_mapping.csv", description="Path to mapping file"),
     articles_path: Optional[str] = Query(None, description="Path to articles DataFrame")
 ):
     """
