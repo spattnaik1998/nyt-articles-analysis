@@ -48,8 +48,12 @@ htmlcov/
 
 # Original analysis files (may contain sensitive data)
 notebooks/data_journalism_original.py
+notebooks/data_journalism.ipynb
 PRD_document.docx
 prd_text.txt
+
+# Keep only the tutorial notebook
+!notebooks/data_journalism_tutorial.ipynb
 
 # Data files (large datasets and embeddings)
 data/*.csv
@@ -67,6 +71,7 @@ data/nyt_articles_500K.csv
 data/preprocessed.parquet
 data/preprocessed_500K.parquet
 data/api_results/
+data/extractions/
 !data/.gitkeep
 
 # Model files and caches
@@ -82,14 +87,24 @@ checkpoints/
 transformers_cache/
 torch_extensions/
 
-# Environment variables
+# Environment variables (CRITICAL - contains API keys)
 .env
 .env.local
 .env.*.local
+*.env
+secrets/
+credentials/
+
+# API keys and secrets
+*_key.txt
+*_secret.txt
+api_keys/
+.secrets
 
 # Logs
 *.log
 logs/
+*.log.*
 
 # Database
 *.db

@@ -16,7 +16,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.models.similarity import recommend_by_embedding
 from src.models.embeddings import build_bertweet_embeddings, get_device
-from src.models.sentiment import batch_infer, MODEL_REGISTRY
+from src.models.sentiment import batch_infer, MODEL_REGISTRY, generate_sentiment_pie_chart
+from src.models.extraction import extract_book_meta, get_openai_client
 from wordcloud import WordCloud
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
@@ -416,11 +417,19 @@ async def get_sentiment_report(
                 verbose=False
             )
 
+            label_dist = result_df['finbert_label'].value_counts().to_dict()
+            pie_chart = generate_sentiment_pie_chart(
+                label_distribution=label_dist,
+                model_name='finbert',
+                total_count=len(result_df)
+            )
+
             models_data = {
                 'finbert': {
                     'total_classified': len(result_df),
                     'average_confidence': float(result_df['finbert_score'].mean()),
-                    'label_distribution': result_df['finbert_label'].value_counts().to_dict()
+                    'label_distribution': label_dist,
+                    'pie_chart': pie_chart
                 }
             }
         else:
@@ -431,10 +440,18 @@ async def get_sentiment_report(
                 score_col = f'{model_name}_score'
 
                 if score_col in filtered_df.columns:
+                    label_dist = filtered_df[col].value_counts().to_dict()
+                    pie_chart = generate_sentiment_pie_chart(
+                        label_distribution=label_dist,
+                        model_name=model_name,
+                        total_count=len(filtered_df)
+                    )
+
                     models_data[model_name] = {
                         'total_classified': len(filtered_df),
                         'average_confidence': float(filtered_df[score_col].mean()),
-                        'label_distribution': filtered_df[col].value_counts().to_dict()
+                        'label_distribution': label_dist,
+                        'pie_chart': pie_chart
                     }
 
         return {
@@ -640,3 +657,158 @@ async def get_available_filters():
         "sections": sections,
         "total_articles": len(data_df)
     }
+
+
+@app.get("/books/extract")
+async def extract_books(
+    year: int = Query(..., description="Year to filter"),
+    section: str = Query("Books", description="Section to filter (default: Books)")
+):
+    """
+    Extract book titles and authors from articles
+
+    Args:
+        year: Year to filter articles
+        section: Section to filter (default: Books)
+
+    Returns:
+        Extracted books with authors, statistics, and visualizations
+    """
+    if data_df is None:
+        raise HTTPException(status_code=503, detail="Data not loaded")
+
+    try:
+        # Filter data by year and section
+        filtered_df = data_df[
+            (data_df['year'] == year) &
+            (data_df['section_name'] == section)
+        ].copy()
+
+        if len(filtered_df) == 0:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No articles found for year={year}, section={section}"
+            )
+
+        # Get OpenAI client
+        openai_client = get_openai_client()
+
+        # Extract books from each article
+        book_titles = []
+        authors = []
+        methods = []
+        successes = []
+
+        # Use combined_text or create it
+        if 'combined_text' not in filtered_df.columns:
+            filtered_df['combined_text'] = (
+                filtered_df['headline'].fillna('') + ' ' +
+                filtered_df['abstract'].fillna('')
+            )
+
+        for idx, row in filtered_df.iterrows():
+            text = row.get('combined_text', '')
+            result = extract_book_meta(
+                text,
+                use_llm=True,
+                openai_client=openai_client,
+                llm_model="gpt-4o"
+            )
+
+            if result.success:
+                book_titles.append(result.book_meta.book_title)
+                authors.append(result.book_meta.author_name)
+                methods.append(result.method)
+                successes.append(True)
+            else:
+                book_titles.append(None)
+                authors.append(None)
+                methods.append('failed')
+                successes.append(False)
+
+        # Add to dataframe
+        filtered_df['book_title'] = book_titles
+        filtered_df['author_name'] = authors
+        filtered_df['extraction_method'] = methods
+        filtered_df['extraction_success'] = successes
+
+        # Get successful extractions
+        successful_df = filtered_df[filtered_df['extraction_success'] == True]
+
+        # Statistics
+        total = len(filtered_df)
+        successful = len(successful_df)
+        success_rate = successful / total if total > 0 else 0
+
+        # Top authors
+        author_counts = successful_df['author_name'].value_counts().head(10)
+        top_authors = [
+            {"author": author, "count": int(count)}
+            for author, count in author_counts.items()
+        ]
+
+        # Method breakdown
+        method_counts = filtered_df['extraction_method'].value_counts()
+        method_breakdown = {
+            method: int(count)
+            for method, count in method_counts.items()
+        }
+
+        # Generate bar chart for top authors
+        if len(top_authors) > 0:
+            fig, ax = plt.subplots(figsize=(10, 6))
+
+            authors_list = [item['author'] for item in top_authors]
+            counts_list = [item['count'] for item in top_authors]
+
+            bars = ax.barh(authors_list[::-1], counts_list[::-1], color='#326891')
+
+            ax.set_xlabel('Number of Books', fontsize=12, weight='bold')
+            ax.set_ylabel('Author', fontsize=12, weight='bold')
+            ax.set_title(f'Top Authors in {section} - {year}', fontsize=14, weight='bold', pad=20)
+            ax.grid(axis='x', alpha=0.3)
+
+            # Add value labels on bars
+            for i, (bar, count) in enumerate(zip(bars, counts_list[::-1])):
+                ax.text(bar.get_width(), bar.get_y() + bar.get_height()/2,
+                       f' {count}', va='center', fontsize=10, weight='bold')
+
+            plt.tight_layout()
+
+            # Convert to base64
+            buffer = io.BytesIO()
+            plt.savefig(buffer, format='PNG', dpi=100, bbox_inches='tight')
+            buffer.seek(0)
+            chart_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+            plt.close(fig)
+
+            author_chart = f'data:image/png;base64,{chart_base64}'
+        else:
+            author_chart = None
+
+        # Sample books (first 20)
+        sample_books = []
+        for _, row in successful_df.head(20).iterrows():
+            sample_books.append({
+                'title': row['book_title'],
+                'author': row['author_name'],
+                'headline': row.get('headline', ''),
+                'pub_date': str(row.get('pub_date', ''))
+            })
+
+        return {
+            'year': year,
+            'section': section,
+            'total_articles': total,
+            'successful_extractions': successful,
+            'success_rate': float(success_rate),
+            'top_authors': top_authors,
+            'method_breakdown': method_breakdown,
+            'author_chart': author_chart,
+            'sample_books': sample_books
+        }
+
+    except Exception as e:
+        import traceback
+        error_detail = f"{str(e)}\n{traceback.format_exc()}"
+        raise HTTPException(status_code=500, detail=f"Book extraction failed: {error_detail}")

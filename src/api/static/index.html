@@ -6,26 +6,22 @@
     <title>NYT Data Journalism Platform</title>
     <style>
         :root {
-            --primary-color: #2563eb;
-            --primary-dark: #1e40af;
-            --primary-light: #3b82f6;
-            --secondary-color: #7c3aed;
-            --accent-color: #06b6d4;
-            --success-color: #10b981;
-            --warning-color: #f59e0b;
-            --danger-color: #ef4444;
-            --gray-50: #f9fafb;
-            --gray-100: #f3f4f6;
-            --gray-200: #e5e7eb;
-            --gray-300: #d1d5db;
-            --gray-600: #4b5563;
-            --gray-700: #374151;
-            --gray-800: #1f2937;
-            --gray-900: #111827;
-            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
-            --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+            /* New York Times Color Palette */
+            --nyt-black: #000000;
+            --nyt-white: #FFFFFF;
+            --nyt-gray-light: #F7F7F7;
+            --nyt-gray-medium: #E2E2E2;
+            --nyt-gray-dark: #333333;
+            --nyt-gray-text: #666666;
+            --nyt-blue: #326891;
+            --nyt-blue-light: #5C9DC6;
+            --nyt-border: #DFDFDF;
+            --nyt-accent: #D0021B;
+
+            /* Shadows for depth */
+            --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+            --shadow-md: 0 2px 8px 0 rgba(0, 0, 0, 0.12);
+            --shadow-lg: 0 4px 16px 0 rgba(0, 0, 0, 0.15);
         }
 
         * {
@@ -35,86 +31,94 @@
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: Georgia, 'Times New Roman', Times, serif;
+            background: var(--nyt-gray-light);
             min-height: 100vh;
             padding: 20px;
-            color: var(--gray-800);
+            color: var(--nyt-gray-dark);
+            line-height: 1.6;
         }
 
         .container {
             max-width: 1400px;
             margin: 0 auto;
-            background: white;
-            border-radius: 16px;
-            box-shadow: var(--shadow-xl);
+            background: var(--nyt-white);
+            border: 1px solid var(--nyt-border);
+            box-shadow: var(--shadow-md);
             overflow: hidden;
         }
 
         .header {
-            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
-            color: white;
-            padding: 40px 30px;
+            background: var(--nyt-white);
+            border-bottom: 4px double var(--nyt-black);
+            padding: 30px 40px;
             text-align: center;
             position: relative;
         }
 
-        .header::after {
-            content: '';
-            position: absolute;
-            bottom: -20px;
-            left: 0;
-            right: 0;
-            height: 20px;
-            background: inherit;
-            clip-path: polygon(0 0, 100% 0, 100% 100%, 0 0);
+        .header-logo {
+            max-width: 400px;
+            height: auto;
+            margin: 0 auto 20px;
+            display: block;
+        }
+
+        .header-divider {
+            width: 100%;
+            height: 1px;
+            background: var(--nyt-border);
+            margin: 20px 0 15px;
         }
 
         .header h1 {
-            font-size: 2.75em;
-            margin-bottom: 12px;
+            font-size: 2.5em;
+            margin-bottom: 8px;
             font-weight: 700;
-            letter-spacing: -0.02em;
+            letter-spacing: -0.5px;
+            color: var(--nyt-black);
+            font-family: Georgia, 'Times New Roman', Times, serif;
         }
 
         .header p {
-            font-size: 1.15em;
-            opacity: 0.95;
+            font-size: 1em;
+            color: var(--nyt-gray-text);
             font-weight: 400;
+            font-style: italic;
+            letter-spacing: 0.3px;
         }
 
         .tabs {
             display: flex;
-            background: var(--gray-50);
-            border-bottom: 2px solid var(--gray-200);
-            padding: 0 20px;
-            gap: 8px;
-            margin-top: 20px;
+            background: var(--nyt-white);
+            border-bottom: 1px solid var(--nyt-border);
+            padding: 0 30px;
+            gap: 0;
         }
 
         .tab {
-            padding: 18px 28px;
+            padding: 16px 24px;
             text-align: center;
             cursor: pointer;
             background: transparent;
             border: none;
-            font-size: 1em;
+            font-size: 0.95em;
             font-weight: 600;
-            color: var(--gray-600);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            border-radius: 8px 8px 0 0;
-            position: relative;
+            color: var(--nyt-gray-text);
+            transition: all 0.2s ease;
+            border-bottom: 3px solid transparent;
+            font-family: Georgia, 'Times New Roman', Times, serif;
+            letter-spacing: 0.5px;
         }
 
         .tab:hover {
-            background: var(--gray-100);
-            color: var(--primary-color);
+            color: var(--nyt-black);
+            background: var(--nyt-gray-light);
         }
 
         .tab.active {
-            background: white;
-            color: var(--primary-color);
-            border-bottom: 3px solid var(--primary-color);
+            color: var(--nyt-black);
+            border-bottom: 3px solid var(--nyt-black);
+            background: var(--nyt-white);
         }
 
         .tab-content {
@@ -135,19 +139,21 @@
         .section-header {
             margin-bottom: 30px;
             padding-bottom: 15px;
-            border-bottom: 2px solid var(--gray-100);
+            border-bottom: 3px double var(--nyt-black);
         }
 
         .section-header h2 {
             font-size: 2em;
-            color: var(--gray-900);
+            color: var(--nyt-black);
             margin-bottom: 8px;
             font-weight: 700;
+            letter-spacing: -0.5px;
         }
 
         .section-header p {
-            color: var(--gray-600);
-            font-size: 1.05em;
+            color: var(--nyt-gray-text);
+            font-size: 1em;
+            font-style: italic;
         }
 
         .form-group {
@@ -158,104 +164,117 @@
             display: block;
             margin-bottom: 10px;
             font-weight: 600;
-            color: var(--gray-700);
-            font-size: 0.95em;
+            color: var(--nyt-black);
+            font-size: 0.9em;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
         }
 
         input[type="text"],
         input[type="number"],
         select {
             width: 100%;
-            padding: 14px 16px;
-            border: 2px solid var(--gray-200);
-            border-radius: 8px;
-            font-size: 1em;
+            padding: 12px 14px;
+            border: 1px solid var(--nyt-border);
+            border-radius: 2px;
+            font-size: 0.95em;
             transition: all 0.2s;
-            background: white;
+            background: var(--nyt-white);
+            font-family: Georgia, 'Times New Roman', Times, serif;
+            color: var(--nyt-gray-dark);
         }
 
         input[type="text"]:focus,
         input[type="number"]:focus,
         select:focus {
             outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            border-color: var(--nyt-black);
+            box-shadow: 0 0 0 1px var(--nyt-black);
         }
 
         button {
-            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
-            color: white;
-            border: none;
-            padding: 14px 32px;
-            border-radius: 8px;
-            font-size: 1em;
+            background: var(--nyt-black);
+            color: var(--nyt-white);
+            border: 2px solid var(--nyt-black);
+            padding: 12px 32px;
+            border-radius: 2px;
+            font-size: 0.95em;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
-            box-shadow: var(--shadow-md);
+            font-family: Georgia, 'Times New Roman', Times, serif;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            font-size: 0.85em;
         }
 
         button:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-lg);
+            background: var(--nyt-white);
+            color: var(--nyt-black);
         }
 
         button:active {
-            transform: translateY(0);
+            transform: scale(0.98);
         }
 
         button:disabled {
-            opacity: 0.6;
+            opacity: 0.5;
             cursor: not-allowed;
         }
 
         .results {
             margin-top: 35px;
             padding: 25px;
-            background: var(--gray-50);
-            border-radius: 12px;
+            background: var(--nyt-white);
+            border: 1px solid var(--nyt-border);
             max-height: 700px;
             overflow-y: auto;
         }
 
         .result-item {
-            background: white;
-            padding: 24px;
-            margin-bottom: 16px;
-            border-radius: 10px;
-            border-left: 5px solid var(--primary-color);
-            box-shadow: var(--shadow-sm);
+            background: var(--nyt-white);
+            padding: 20px 0;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--nyt-border);
             transition: all 0.2s;
         }
 
+        .result-item:last-child {
+            border-bottom: none;
+        }
+
         .result-item:hover {
-            box-shadow: var(--shadow-md);
-            transform: translateX(4px);
+            background: var(--nyt-gray-light);
+            padding-left: 10px;
+            padding-right: 10px;
         }
 
         .result-item h3 {
-            color: var(--gray-900);
-            margin-bottom: 12px;
-            font-size: 1.2em;
-            font-weight: 600;
+            color: var(--nyt-black);
+            margin-bottom: 10px;
+            font-size: 1.3em;
+            font-weight: 700;
+            line-height: 1.3;
         }
 
         .result-item p {
-            color: var(--gray-700);
-            line-height: 1.7;
+            color: var(--nyt-gray-dark);
+            line-height: 1.6;
             margin: 8px 0;
+            font-size: 0.95em;
         }
 
         .loading {
             text-align: center;
             padding: 50px;
-            color: var(--primary-color);
-            font-size: 1.1em;
+            color: var(--nyt-gray-dark);
+            font-size: 1em;
+            font-style: italic;
         }
 
         .spinner {
-            border: 4px solid var(--gray-200);
-            border-top: 4px solid var(--primary-color);
+            border: 3px solid var(--nyt-gray-medium);
+            border-top: 3px solid var(--nyt-black);
             border-radius: 50%;
             width: 50px;
             height: 50px;
@@ -269,23 +288,25 @@
         }
 
         .error {
-            background: #fef2f2;
-            color: var(--danger-color);
+            background: #FFF5F5;
+            color: var(--nyt-accent);
             padding: 16px 20px;
-            border-radius: 8px;
+            border-radius: 2px;
             margin-top: 20px;
-            border-left: 5px solid var(--danger-color);
+            border-left: 4px solid var(--nyt-accent);
             font-weight: 500;
+            font-size: 0.95em;
         }
 
         .success {
-            background: #f0fdf4;
-            color: var(--success-color);
+            background: #F0F9FF;
+            color: var(--nyt-blue);
             padding: 16px 20px;
-            border-radius: 8px;
+            border-radius: 2px;
             margin-top: 20px;
-            border-left: 5px solid var(--success-color);
+            border-left: 4px solid var(--nyt-blue);
             font-weight: 500;
+            font-size: 0.95em;
         }
 
         .stats-grid {
@@ -296,28 +317,31 @@
         }
 
         .stat-card {
-            background: white;
+            background: var(--nyt-white);
             padding: 24px;
-            border-radius: 10px;
-            border-left: 5px solid var(--primary-color);
+            border-radius: 2px;
+            border: 1px solid var(--nyt-border);
+            border-top: 3px solid var(--nyt-black);
             box-shadow: var(--shadow-sm);
             transition: all 0.2s;
         }
 
         .stat-card:hover {
             box-shadow: var(--shadow-md);
+            border-top-color: var(--nyt-blue);
         }
 
         .stat-card h4 {
-            color: var(--primary-color);
+            color: var(--nyt-black);
             margin-bottom: 12px;
             font-size: 1.1em;
             font-weight: 700;
+            letter-spacing: 0.5px;
         }
 
         .stat-card p {
-            color: var(--gray-700);
-            font-size: 1em;
+            color: var(--nyt-gray-dark);
+            font-size: 0.95em;
             line-height: 1.6;
         }
 
@@ -330,23 +354,26 @@
         }
 
         .wordcloud-card {
-            background: white;
+            background: var(--nyt-white);
             padding: 20px;
-            border-radius: 12px;
-            box-shadow: var(--shadow-md);
+            border-radius: 2px;
+            border: 1px solid var(--nyt-border);
+            box-shadow: var(--shadow-sm);
             transition: all 0.3s;
         }
 
         .wordcloud-card:hover {
-            box-shadow: var(--shadow-lg);
-            transform: translateY(-4px);
+            box-shadow: var(--shadow-md);
+            border-color: var(--nyt-black);
         }
 
         .wordcloud-card h3 {
-            color: var(--gray-900);
+            color: var(--nyt-black);
             margin-bottom: 15px;
             font-size: 1.2em;
             font-weight: 700;
+            border-bottom: 2px solid var(--nyt-border);
+            padding-bottom: 10px;
         }
 
         .wordcloud-card img {
@@ -363,27 +390,31 @@
 
         .keyword-tag {
             display: inline-block;
-            background: var(--primary-light);
-            color: white;
-            padding: 6px 14px;
-            border-radius: 20px;
+            background: var(--nyt-black);
+            color: var(--nyt-white);
+            padding: 6px 12px;
+            border-radius: 2px;
             margin: 4px;
-            font-size: 0.9em;
+            font-size: 0.85em;
             font-weight: 500;
+            letter-spacing: 0.3px;
         }
 
         .viz-controls {
-            background: white;
+            background: var(--nyt-white);
             padding: 25px;
-            border-radius: 12px;
+            border-radius: 2px;
+            border: 1px solid var(--nyt-border);
             box-shadow: var(--shadow-sm);
             margin-bottom: 30px;
         }
 
         .viz-controls h3 {
             margin-bottom: 20px;
-            color: var(--gray-900);
+            color: var(--nyt-black);
             font-size: 1.3em;
+            border-bottom: 2px solid var(--nyt-border);
+            padding-bottom: 12px;
         }
 
         .form-row {
@@ -396,50 +427,71 @@
         input[type="range"] {
             width: 100%;
             height: 8px;
-            border-radius: 5px;
-            background: var(--gray-200);
+            border-radius: 4px;
+            background: linear-gradient(to right, var(--nyt-blue-light) 0%, var(--nyt-blue) 100%);
             outline: none;
             -webkit-appearance: none;
+            border: 1px solid var(--nyt-border);
         }
 
         input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
-            width: 20px;
-            height: 20px;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
-            background: var(--primary-color);
+            background: var(--nyt-blue);
+            border: 3px solid var(--nyt-white);
             cursor: pointer;
-            box-shadow: var(--shadow-md);
+            box-shadow: 0 2px 8px rgba(50, 104, 145, 0.3);
+            transition: all 0.2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: var(--nyt-blue-light);
+            transform: scale(1.1);
+            box-shadow: 0 3px 12px rgba(50, 104, 145, 0.5);
         }
 
         input[type="range"]::-moz-range-thumb {
-            width: 20px;
-            height: 20px;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
-            background: var(--primary-color);
+            background: var(--nyt-blue);
+            border: 3px solid var(--nyt-white);
             cursor: pointer;
-            box-shadow: var(--shadow-md);
+            box-shadow: 0 2px 8px rgba(50, 104, 145, 0.3);
+            transition: all 0.2s;
+        }
+
+        input[type="range"]::-moz-range-thumb:hover {
+            background: var(--nyt-blue-light);
+            transform: scale(1.1);
+            box-shadow: 0 3px 12px rgba(50, 104, 145, 0.5);
         }
 
         .info-banner {
-            background: linear-gradient(135deg, #e0e7ff 0%, #ddd6fe 100%);
-            color: var(--gray-800);
+            background: var(--nyt-gray-light);
+            color: var(--nyt-gray-dark);
             padding: 20px 24px;
-            border-radius: 10px;
+            border-radius: 2px;
             margin-bottom: 25px;
-            border-left: 5px solid var(--secondary-color);
+            border-left: 4px solid var(--nyt-blue);
+            font-size: 0.95em;
         }
 
         .info-banner strong {
-            color: var(--secondary-color);
+            color: var(--nyt-black);
+            font-weight: 700;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>NYT Data Journalism Platform</h1>
+            <img src="/static/images/nyt-logo.png" alt="The New York Times" class="header-logo">
+            <div class="header-divider"></div>
+            <h1>Data Journalism Platform</h1>
             <p>Advanced Analytics & Visualization for 500,000+ NYT Articles</p>
         </div>
 
@@ -448,6 +500,7 @@
             <button class="tab" onclick="switchTab('topic')">Topic Modeling</button>
             <button class="tab" onclick="switchTab('visualizations')">Visualizations</button>
             <button class="tab" onclick="switchTab('sentiment')">Sentiment Analysis</button>
+            <button class="tab" onclick="switchTab('books')">Book Extraction</button>
         </div>
 
         <!-- Search Tab -->
@@ -470,11 +523,11 @@
 
                 <div class="form-group">
                     <label for="search-alpha">
-                        Search Mode: <span id="search-mode-label" style="color: var(--success-color);">Balanced Hybrid</span>
+                        Search Mode: <span id="search-mode-label" style="color: var(--nyt-blue); font-weight: 700;">Balanced Hybrid</span>
                     </label>
                     <input type="range" id="search-alpha" min="0" max="100" value="50"
                            oninput="updateSearchModeLabel(this.value)">
-                    <div style="display: flex; justify-content: space-between; color: var(--gray-600); font-size: 0.9em; margin-top: 8px;">
+                    <div style="display: flex; justify-content: space-between; color: var(--nyt-gray-text); font-size: 0.85em; margin-top: 8px; font-style: italic;">
                         <span>Keyword Only</span>
                         <span>Semantic Only</span>
                     </div>
@@ -602,6 +655,38 @@
 
             <div id="sentiment-results"></div>
         </div>
+
+        <!-- Book Extraction Tab -->
+        <div id="books-tab" class="tab-content">
+            <div class="section-header">
+                <h2>Book & Author Extraction</h2>
+                <p>Extract book titles and authors from NYT book reviews and articles using LLM and pattern matching</p>
+            </div>
+
+            <div class="info-banner">
+                <strong>How it works:</strong> Select a year to analyze book articles. The system uses OpenAI's GPT-3.5 with structured extraction to identify book titles and authors, with regex pattern fallbacks for reliability.
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="books-year">Year</label>
+                    <select id="books-year">
+                        <option value="">Loading years...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="books-section">Section</label>
+                    <select id="books-section">
+                        <option value="Books">Books</option>
+                    </select>
+                </div>
+            </div>
+
+            <button onclick="extractBooks()">Extract Books & Authors</button>
+
+            <div id="books-results"></div>
+        </div>
     </div>
 
     <script>
@@ -619,7 +704,7 @@
 
                 if (response.ok) {
                     // Populate year dropdowns
-                    const yearSelects = ['topic-year', 'sentiment-year', 'viz-year'];
+                    const yearSelects = ['topic-year', 'sentiment-year', 'viz-year', 'books-year'];
                     yearSelects.forEach(selectId => {
                         const select = document.getElementById(selectId);
                         if (selectId === 'sentiment-year') {
@@ -677,19 +762,24 @@
 
             if (alpha === 0) {
                 label.textContent = 'Pure Keyword (BM25)';
-                label.style.color = '#ef4444';
+                label.style.color = '#000000';  // NYT Black
+                label.style.fontWeight = '700';
             } else if (alpha === 1) {
                 label.textContent = 'Pure Semantic';
-                label.style.color = '#3b82f6';
+                label.style.color = '#326891';  // NYT Blue
+                label.style.fontWeight = '700';
             } else if (alpha < 0.3) {
                 label.textContent = 'Keyword-Heavy';
-                label.style.color = '#f59e0b';
+                label.style.color = '#333333';  // NYT Gray Dark
+                label.style.fontWeight = '600';
             } else if (alpha > 0.7) {
                 label.textContent = 'Semantic-Heavy';
-                label.style.color = '#7c3aed';
+                label.style.color = '#5C9DC6';  // NYT Blue Light
+                label.style.fontWeight = '600';
             } else {
                 label.textContent = 'Balanced Hybrid';
-                label.style.color = '#10b981';
+                label.style.color = '#326891';  // NYT Blue
+                label.style.fontWeight = '700';
             }
         }
 
@@ -883,12 +973,109 @@
                         if (modelData.label_distribution) {
                             html += '<p style="margin-top: 12px;"><strong>Distribution:</strong></p><ul style="margin-left: 20px; margin-top: 8px;">';
                             for (const [label, count] of Object.entries(modelData.label_distribution)) {
-                                html += '<li>' + label + ': ' + count.toLocaleString() + '</li>';
+                                const percentage = ((count / modelData.total_classified) * 100).toFixed(1);
+                                html += '<li>' + label + ': ' + count.toLocaleString() + ' (' + percentage + '%)</li>';
                             }
                             html += '</ul>';
                         }
+
+                        // Add pie chart if available
+                        if (modelData.pie_chart) {
+                            html += '<div style="margin-top: 20px; text-align: center;">';
+                            html += '<img src="' + modelData.pie_chart + '" alt="' + modelName + ' sentiment distribution" style="max-width: 100%; border-radius: 8px; box-shadow: var(--shadow-sm);">';
+                            html += '</div>';
+                        }
+
                         html += '</div>';
                     }
+                    html += '</div>';
+                }
+
+                html += '</div>';
+                resultsDiv.innerHTML = html;
+            } catch (error) {
+                resultsDiv.innerHTML = '<div class="error">Error: ' + error.message + '</div>';
+            }
+        }
+
+        async function extractBooks() {
+            const year = parseInt(document.getElementById('books-year').value);
+            const section = document.getElementById('books-section').value;
+            const resultsDiv = document.getElementById('books-results');
+
+            if (!year) {
+                resultsDiv.innerHTML = '<div class="error">Please select a year</div>';
+                return;
+            }
+
+            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Extracting books and authors... This may take a moment as we use AI to extract structured data.</div>';
+
+            try {
+                const url = API_BASE + '/books/extract?year=' + year + '&section=' + encodeURIComponent(section);
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to extract books');
+                }
+
+                let html = '<div class="results">';
+                html += '<h3 style="margin-bottom: 15px;">Book Extraction Results - ' + data.year + '</h3>';
+                html += '<p><strong>Total Articles:</strong> ' + data.total_articles + '</p>';
+                html += '<p><strong>Successfully Extracted:</strong> ' + data.successful_extractions + ' (' + (data.success_rate * 100).toFixed(1) + '%)</p>';
+
+                // Method breakdown
+                if (data.method_breakdown) {
+                    html += '<div style="margin-top: 20px;">';
+                    html += '<h4>Extraction Methods Used:</h4>';
+                    html += '<ul style="margin-left: 20px;">';
+                    for (const [method, count] of Object.entries(data.method_breakdown)) {
+                        const pct = ((count / data.total_articles) * 100).toFixed(1);
+                        html += '<li>' + method + ': ' + count + ' (' + pct + '%)</li>';
+                    }
+                    html += '</ul>';
+                    html += '</div>';
+                }
+
+                // Top authors chart
+                if (data.author_chart) {
+                    html += '<div style="margin-top: 30px; text-align: center;">';
+                    html += '<h4>Top Authors</h4>';
+                    html += '<img src="' + data.author_chart + '" alt="Top Authors Chart" style="max-width: 100%; border-radius: 8px; box-shadow: var(--shadow-md);">';
+                    html += '</div>';
+                }
+
+                // Top authors list
+                if (data.top_authors && data.top_authors.length > 0) {
+                    html += '<div style="margin-top: 30px;">';
+                    html += '<h4>Top 10 Authors by Number of Books:</h4>';
+                    html += '<div class="stats-grid">';
+                    data.top_authors.forEach((item, idx) => {
+                        html += '<div class="stat-card">';
+                        html += '<h4>' + (idx + 1) + '. ' + item.author + '</h4>';
+                        html += '<p><strong>Books Reviewed:</strong> ' + item.count + '</p>';
+                        html += '</div>';
+                    });
+                    html += '</div>';
+                    html += '</div>';
+                }
+
+                // Sample books
+                if (data.sample_books && data.sample_books.length > 0) {
+                    html += '<div style="margin-top: 30px;">';
+                    html += '<h4>Sample Extracted Books (showing first ' + data.sample_books.length + '):</h4>';
+                    html += '<div style="max-height: 400px; overflow-y: auto; margin-top: 15px;">';
+
+                    data.sample_books.forEach((book, idx) => {
+                        html += '<div class="result-item">';
+                        html += '<h3>' + (idx + 1) + '. ' + book.title + '</h3>';
+                        html += '<p><strong>Author:</strong> ' + book.author + '</p>';
+                        if (book.headline) html += '<p><strong>Article:</strong> ' + book.headline + '</p>';
+                        if (book.pub_date) html += '<p><strong>Published:</strong> ' + book.pub_date + '</p>';
+                        html += '</div>';
+                    });
+
+                    html += '</div>';
                     html += '</div>';
                 }
 
