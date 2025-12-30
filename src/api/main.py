@@ -16,8 +16,20 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.models.similarity import recommend_by_embedding
 from src.models.embeddings import build_bertweet_embeddings, get_device
-from src.models.sentiment import batch_infer, MODEL_REGISTRY, generate_sentiment_pie_chart
-from src.models.extraction import extract_book_meta, get_openai_client
+from src.models.sentiment import (
+    batch_infer,
+    MODEL_REGISTRY,
+    generate_sentiment_pie_chart,
+    select_model_for_section,
+    get_recommended_models_for_section
+)
+from src.models.extraction import (
+    extract_book_meta,
+    get_openai_client,
+    batch_extract_with_verification,
+    extract_and_verify_book_meta
+)
+from src.models.topic_models import generate_topic_description
 from wordcloud import WordCloud
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
@@ -332,10 +344,16 @@ async def run_topic_modeling(request: TopicRequest):
             for topic_idx, topic in enumerate(lda.components_):
                 top_indices = topic.argsort()[-10:][::-1]
                 top_words = [feature_names[i] for i in top_indices]
+
+                # Generate human-readable description
+                description = generate_topic_description(top_words, topic_idx)
+
                 topics.append({
                     'topic_id': topic_idx,
+                    'description': description,
+                    'keywords': ', '.join(top_words[:5]),
                     'words': top_words,
-                    'topic_name': f"Topic {topic_idx}: {', '.join(top_words[:3])}"
+                    'topic_name': description  # Use description as topic_name
                 })
 
         # Generate job ID
@@ -408,30 +426,47 @@ async def get_sentiment_report(
             sample_size = min(100, len(filtered_df))
             sample_df = filtered_df.head(sample_size)
 
-            # Run sentiment analysis
+            # Intelligently select models based on section
+            # If a section is specified, use recommended models for that section
+            if section:
+                selected_models = get_recommended_models_for_section(section)
+            else:
+                # Auto-select based on sections in the sample
+                selected_models = None  # Let batch_infer auto-select
+
+            # Run sentiment analysis with intelligent model selection
             result_df = batch_infer(
                 sample_df,
                 text_col='cleaned_text',
-                models=['finbert'],
+                models=selected_models,
+                auto_select_models=(selected_models is None),
                 batch_size=16,
                 verbose=False
             )
 
-            label_dist = result_df['finbert_label'].value_counts().to_dict()
-            pie_chart = generate_sentiment_pie_chart(
-                label_distribution=label_dist,
-                model_name='finbert',
-                total_count=len(result_df)
-            )
+            # Generate reports for all models used
+            models_data = {}
+            sentiment_cols = [col for col in result_df.columns if col.endswith('_label')]
 
-            models_data = {
-                'finbert': {
-                    'total_classified': len(result_df),
-                    'average_confidence': float(result_df['finbert_score'].mean()),
-                    'label_distribution': label_dist,
-                    'pie_chart': pie_chart
-                }
-            }
+            for col in sentiment_cols:
+                model_name = col.replace('_label', '')
+                score_col = f'{model_name}_score'
+
+                if score_col in result_df.columns:
+                    label_dist = result_df[col].value_counts().to_dict()
+                    pie_chart = generate_sentiment_pie_chart(
+                        label_distribution=label_dist,
+                        model_name=model_name,
+                        total_count=len(result_df)
+                    )
+
+                    models_data[model_name] = {
+                        'total_classified': len(result_df),
+                        'average_confidence': float(result_df[score_col].mean()),
+                        'label_distribution': label_dist,
+                        'pie_chart': pie_chart,
+                        'description': MODEL_REGISTRY.get(model_name, {}).get('description', '')
+                    }
         else:
             # Use existing sentiment data
             models_data = {}
@@ -451,7 +486,8 @@ async def get_sentiment_report(
                         'total_classified': len(filtered_df),
                         'average_confidence': float(filtered_df[score_col].mean()),
                         'label_distribution': label_dist,
-                        'pie_chart': pie_chart
+                        'pie_chart': pie_chart,
+                        'description': MODEL_REGISTRY.get(model_name, {}).get('description', '')
                     }
 
         return {
@@ -613,9 +649,15 @@ async def generate_wordclouds(
             # Get top words for topic name
             top_words = [feature_names[i] for i in top_indices[:5]]
 
+            # Generate human-readable description
+            all_top_words = [feature_names[i] for i in top_indices[:10]]
+            description = generate_topic_description(all_top_words, topic_idx)
+
             wordclouds.append({
                 'topic_id': topic_idx,
-                'topic_name': f"Topic {topic_idx + 1}: {', '.join(top_words[:3])}",
+                'topic_name': description,
+                'description': description,
+                'keywords': ', '.join(top_words),
                 'top_words': top_words,
                 'image': f'data:image/png;base64,{image_base64}'
             })
@@ -662,17 +704,27 @@ async def get_available_filters():
 @app.get("/books/extract")
 async def extract_books(
     year: int = Query(..., description="Year to filter"),
-    section: str = Query("Books", description="Section to filter (default: Books)")
+    section: str = Query("Books", description="Section to filter (default: Books)"),
+    use_verification: bool = Query(True, description="Use web search verification"),
+    min_confidence: str = Query("medium", description="Minimum confidence level (high/medium/low)")
 ):
     """
-    Extract book titles and authors from articles
+    Extract and verify book titles and authors from articles
+
+    This endpoint:
+    1. Extracts book metadata from articles using LLM
+    2. Verifies each extraction using web search (SERPER API)
+    3. Uses evaluation LLM to confirm/correct extractions
+    4. Only includes verified, high-confidence results
 
     Args:
         year: Year to filter articles
         section: Section to filter (default: Books)
+        use_verification: Enable web search verification (default: True)
+        min_confidence: Minimum confidence level to accept (default: medium)
 
     Returns:
-        Extracted books with authors, statistics, and visualizations
+        Verified books with authors, confidence scores, statistics, and visualizations
     """
     if data_df is None:
         raise HTTPException(status_code=503, detail="Data not loaded")
@@ -690,15 +742,6 @@ async def extract_books(
                 detail=f"No articles found for year={year}, section={section}"
             )
 
-        # Get OpenAI client
-        openai_client = get_openai_client()
-
-        # Extract books from each article
-        book_titles = []
-        authors = []
-        methods = []
-        successes = []
-
         # Use combined_text or create it
         if 'combined_text' not in filtered_df.columns:
             filtered_df['combined_text'] = (
@@ -706,49 +749,50 @@ async def extract_books(
                 filtered_df['abstract'].fillna('')
             )
 
-        for idx, row in filtered_df.iterrows():
-            text = row.get('combined_text', '')
-            result = extract_book_meta(
-                text,
-                use_llm=True,
-                openai_client=openai_client,
-                llm_model="gpt-4o"
-            )
+        # Extract and verify books with the new verification pipeline
+        result_df = batch_extract_with_verification(
+            filtered_df,
+            text_col='combined_text',
+            use_llm=True,
+            use_verification=use_verification,
+            llm_model="gpt-3.5-turbo",
+            verification_model="gpt-4o",
+            min_confidence_threshold=min_confidence,
+            max_workers=5,
+            verbose=False  # Disable verbose logging in API
+        )
 
-            if result.success:
-                book_titles.append(result.book_meta.book_title)
-                authors.append(result.book_meta.author_name)
-                methods.append(result.method)
-                successes.append(True)
-            else:
-                book_titles.append(None)
-                authors.append(None)
-                methods.append('failed')
-                successes.append(False)
-
-        # Add to dataframe
-        filtered_df['book_title'] = book_titles
-        filtered_df['author_name'] = authors
-        filtered_df['extraction_method'] = methods
-        filtered_df['extraction_success'] = successes
-
-        # Get successful extractions
-        successful_df = filtered_df[filtered_df['extraction_success'] == True]
+        # Get verified extractions (only those that passed verification)
+        verified_df = result_df[result_df['extraction_success'] == True]
 
         # Statistics
-        total = len(filtered_df)
-        successful = len(successful_df)
-        success_rate = successful / total if total > 0 else 0
+        total = len(result_df)
+        verified = len(verified_df)
+        verification_rate = verified / total if total > 0 else 0
 
-        # Top authors
-        author_counts = successful_df['author_name'].value_counts().head(10)
-        top_authors = [
-            {"author": author, "count": int(count)}
-            for author, count in author_counts.items()
-        ]
+        # Count corrections
+        corrected = verified_df['was_corrected'].sum() if 'was_corrected' in verified_df.columns else 0
 
-        # Method breakdown
-        method_counts = filtered_df['extraction_method'].value_counts()
+        # Confidence breakdown
+        confidence_breakdown = {}
+        if 'verification_confidence' in result_df.columns:
+            confidence_counts = result_df['verification_confidence'].value_counts()
+            confidence_breakdown = {
+                conf: int(count)
+                for conf, count in confidence_counts.items()
+            }
+
+        # Top authors (from verified results only)
+        top_authors = []
+        if len(verified_df) > 0:
+            author_counts = verified_df['author_name'].value_counts().head(10)
+            top_authors = [
+                {"author": author, "count": int(count)}
+                for author, count in author_counts.items()
+            ]
+
+        # Method breakdown (extraction methods used)
+        method_counts = result_df['extraction_method'].value_counts()
         method_breakdown = {
             method: int(count)
             for method, count in method_counts.items()
@@ -786,26 +830,33 @@ async def extract_books(
         else:
             author_chart = None
 
-        # Sample books (first 20)
+        # Sample verified books (first 20)
         sample_books = []
-        for _, row in successful_df.head(20).iterrows():
+        for _, row in verified_df.head(20).iterrows():
             sample_books.append({
                 'title': row['book_title'],
                 'author': row['author_name'],
                 'headline': row.get('headline', ''),
-                'pub_date': str(row.get('pub_date', ''))
+                'pub_date': str(row.get('pub_date', '')),
+                'confidence': row.get('verification_confidence', 'unknown'),
+                'was_corrected': bool(row.get('was_corrected', False)),
+                'reasoning': row.get('verification_reasoning', '')[:200]  # Truncate reasoning
             })
 
         return {
             'year': year,
             'section': section,
             'total_articles': total,
-            'successful_extractions': successful,
-            'success_rate': float(success_rate),
+            'verified_extractions': verified,
+            'verification_rate': float(verification_rate),
+            'corrected_count': int(corrected),
             'top_authors': top_authors,
+            'confidence_breakdown': confidence_breakdown,
             'method_breakdown': method_breakdown,
             'author_chart': author_chart,
-            'sample_books': sample_books
+            'sample_books': sample_books,
+            'verification_enabled': use_verification,
+            'min_confidence_threshold': min_confidence
         }
 
     except Exception as e:

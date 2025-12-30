@@ -28,8 +28,13 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.models.similarity import recommend_by_embedding
-from src.models.topic_models import run_bertopic, run_lda
-from src.models.sentiment import batch_infer, model_comparison_report
+from src.models.topic_models import run_bertopic, run_lda, generate_topic_description
+from src.models.sentiment import (
+    batch_infer,
+    model_comparison_report,
+    select_model_for_section,
+    get_recommended_models_for_section
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
