@@ -119,6 +119,7 @@ Thumbs.db
 *.tmp
 temp/
 tmp/
+nul
 
 # Generated visualizations
 *.png

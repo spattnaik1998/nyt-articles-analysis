@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NYT Data Journalism Platform</title>
+    <title>NYT Article Analytics Platform</title>
     <style>
         :root {
             /* New York Times Color Palette */
@@ -491,8 +491,8 @@
         <div class="header">
             <img src="/static/images/nyt-logo.png" alt="The New York Times" class="header-logo">
             <div class="header-divider"></div>
-            <h1>Data Journalism Platform</h1>
-            <p>Advanced Analytics & Visualization for 500,000+ NYT Articles</p>
+            <h1>Article Analytics Platform</h1>
+            <p>Advanced Analytics & Insights for 500,000+ NYT Articles</p>
         </div>
 
         <div class="tabs">
@@ -506,8 +506,8 @@
         <!-- Search Tab -->
         <div id="search-tab" class="tab-content active">
             <div class="section-header">
-                <h2>Hybrid Article Search</h2>
-                <p>Search using semantic similarity and keyword matching with BM25 algorithm</p>
+                <h2>Smart Article Search</h2>
+                <p>Search using intelligent content matching and keyword discovery</p>
             </div>
 
             <div class="form-group">
@@ -523,13 +523,13 @@
 
                 <div class="form-group">
                     <label for="search-alpha">
-                        Search Mode: <span id="search-mode-label" style="color: var(--nyt-blue); font-weight: 700;">Balanced Hybrid</span>
+                        Search Mode: <span id="search-mode-label" style="color: var(--nyt-blue); font-weight: 700;">Balanced Search</span>
                     </label>
                     <input type="range" id="search-alpha" min="0" max="100" value="50"
                            oninput="updateSearchModeLabel(this.value)">
                     <div style="display: flex; justify-content: space-between; color: var(--nyt-gray-text); font-size: 0.85em; margin-top: 8px; font-style: italic;">
                         <span>Keyword Only</span>
-                        <span>Semantic Only</span>
+                        <span>Meaning-Based Only</span>
                     </div>
                 </div>
             </div>
@@ -542,8 +542,8 @@
         <!-- Topic Modeling Tab -->
         <div id="topic-tab" class="tab-content">
             <div class="section-header">
-                <h2>Topic Modeling Analysis</h2>
-                <p>Discover themes and trends using LDA or BERTopic algorithms</p>
+                <h2>Topic Discovery</h2>
+                <p>Discover themes and trends across article collections</p>
             </div>
 
             <div class="form-row">
@@ -584,7 +584,7 @@
         <div id="visualizations-tab" class="tab-content">
             <div class="section-header">
                 <h2>Topic Visualizations</h2>
-                <p>Generate wordclouds and explore topic distributions visually</p>
+                <p>Generate word clouds and explore topic patterns visually</p>
             </div>
 
             <div class="info-banner">
@@ -631,8 +631,8 @@
         <!-- Sentiment Tab -->
         <div id="sentiment-tab" class="tab-content">
             <div class="section-header">
-                <h2>Sentiment Analysis Report</h2>
-                <p>Multi-model sentiment analysis with FinBERT, DistilRoBERTa, and PoliBERT</p>
+                <h2>Sentiment Analysis</h2>
+                <p>Comprehensive sentiment detection across different content perspectives</p>
             </div>
 
             <div class="form-row">
@@ -660,11 +660,11 @@
         <div id="books-tab" class="tab-content">
             <div class="section-header">
                 <h2>Book & Author Extraction</h2>
-                <p>Extract book titles and authors from NYT book reviews and articles using LLM and pattern matching</p>
+                <p>Extract book titles and authors from NYT book reviews and articles</p>
             </div>
 
             <div class="info-banner">
-                <strong>How it works:</strong> Select a year to analyze book articles. The system uses OpenAI's GPT-3.5 with structured extraction to identify book titles and authors, with regex pattern fallbacks for reliability.
+                <strong>How it works:</strong> Select a year to analyze book articles. The system uses advanced AI to identify book titles and authors with high accuracy.
             </div>
 
             <div class="form-row">
@@ -761,11 +761,11 @@
             const label = document.getElementById('search-mode-label');
 
             if (alpha === 0) {
-                label.textContent = 'Pure Keyword (BM25)';
+                label.textContent = 'Pure Keyword';
                 label.style.color = '#000000';  // NYT Black
                 label.style.fontWeight = '700';
             } else if (alpha === 1) {
-                label.textContent = 'Pure Semantic';
+                label.textContent = 'Pure Meaning-Based';
                 label.style.color = '#326891';  // NYT Blue
                 label.style.fontWeight = '700';
             } else if (alpha < 0.3) {
@@ -773,11 +773,11 @@
                 label.style.color = '#333333';  // NYT Gray Dark
                 label.style.fontWeight = '600';
             } else if (alpha > 0.7) {
-                label.textContent = 'Semantic-Heavy';
+                label.textContent = 'Meaning-Heavy';
                 label.style.color = '#5C9DC6';  // NYT Blue Light
                 label.style.fontWeight = '600';
             } else {
-                label.textContent = 'Balanced Hybrid';
+                label.textContent = 'Balanced Search';
                 label.style.color = '#326891';  // NYT Blue
                 label.style.fontWeight = '700';
             }

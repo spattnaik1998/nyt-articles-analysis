@@ -10,6 +10,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -38,8 +42,8 @@ import io
 import base64
 
 app = FastAPI(
-    title="NYT Data Journalism Platform API",
-    description="REST API for NYT article analysis with topic modeling, sentiment analysis, and recommendations",
+    title="NYT Article Analytics Platform API",
+    description="REST API for NYT article analysis with topic discovery, sentiment analysis, and content recommendations",
     version="0.1.0",
 )
 
@@ -147,7 +151,7 @@ async def serve_frontend():
 async def root():
     """Health check endpoint"""
     return {
-        "message": "NYT Data Journalism Platform API",
+        "message": "NYT Article Analytics Platform API",
         "version": "0.1.0",
         "status": "operational",
         "frontend_url": "/app",
@@ -178,21 +182,21 @@ async def health():
 async def search_articles(
     query: str = Query(..., description="Search query"),
     k: int = Query(5, ge=1, le=50, description="Number of results"),
-    alpha: float = Query(0.5, ge=0.0, le=1.0, description="Hybrid search weight: 0=keyword only, 1=semantic only, 0.5=balanced")
+    alpha: float = Query(0.5, ge=0.0, le=1.0, description="Search mode: 0=keyword only, 1=meaning-based only, 0.5=balanced")
 ):
     """
-    Hybrid search combining semantic similarity and keyword matching
+    Smart search combining meaning-based and keyword matching
 
     Args:
         query: Natural language search query
         k: Number of results to return (1-50)
-        alpha: Weight for hybrid search (0-1)
-               - 0.0 = Pure keyword search (BM25)
-               - 1.0 = Pure semantic search (embeddings)
+        alpha: Search mode balance (0-1)
+               - 0.0 = Pure keyword search
+               - 1.0 = Pure meaning-based search
                - 0.5 = Balanced hybrid (recommended)
 
     Returns:
-        List of similar articles with metadata and scores
+        List of relevant articles with metadata and scores
     """
     if data_df is None:
         raise HTTPException(status_code=503, detail="Data not loaded")
@@ -712,9 +716,9 @@ async def extract_books(
     Extract and verify book titles and authors from articles
 
     This endpoint:
-    1. Extracts book metadata from articles using LLM
-    2. Verifies each extraction using web search (SERPER API)
-    3. Uses evaluation LLM to confirm/correct extractions
+    1. Extracts book metadata from articles using OpenAI GPT
+    2. Uses Gemini as LLM judge to verify using internal knowledge
+    3. Filters out invalid author names (Various, Unknown, Staff, etc.)
     4. Only includes verified, high-confidence results
 
     Args:
@@ -750,15 +754,17 @@ async def extract_books(
             )
 
         # Extract and verify books with the new verification pipeline
+        # Using GPT-3.5 for extraction, Tavily for search, and Gemini for verification
         result_df = batch_extract_with_verification(
             filtered_df,
             text_col='combined_text',
             use_llm=True,
             use_verification=use_verification,
-            llm_model="gpt-3.5-turbo",
-            verification_model="gpt-4o",
+            llm_model="gpt-3.5-turbo",  # OpenAI for extraction
+            verification_model="gemini-2.0-flash-exp",  # Gemini for verification
+            use_gemini_for_verification=True,  # Use Gemini instead of OpenAI
             min_confidence_threshold=min_confidence,
-            max_workers=5,
+            max_workers=2,  # Reduced to avoid Tavily rate limits
             verbose=False  # Disable verbose logging in API
         )
 

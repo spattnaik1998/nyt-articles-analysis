@@ -1,9 +1,9 @@
 """
-FastAPI Application - NYT Data Journalism Platform
+FastAPI Application - NYT Article Analytics Platform
 
 This module provides REST API endpoints for:
-- Similarity search
-- Topic modeling (async background jobs)
+- Content search and discovery
+- Topic analysis (async background jobs)
 - Sentiment analysis reports
 """
 
@@ -42,8 +42,8 @@ logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="NYT Data Journalism Platform API",
-    description="API for similarity search, topic modeling, and sentiment analysis",
+    title="NYT Article Analytics Platform API",
+    description="API for content search, topic analysis, and sentiment analysis",
     version="1.0.0"
 )
 
@@ -266,7 +266,7 @@ def run_topic_modeling_job(job_id: str, request: TopicJobRequest):
 async def root():
     """Root endpoint with API information."""
     return {
-        "name": "NYT Data Journalism Platform API",
+        "name": "NYT Article Analytics Platform API",
         "version": "1.0.0",
         "endpoints": {
             "search": "/search?query=...&k=5",
@@ -293,22 +293,22 @@ async def health_check():
 async def search_articles(
     query: str = Query(..., description="Search query text"),
     k: int = Query(5, ge=1, le=100, description="Number of results to return"),
-    embeddings_path: str = Query("data/embeddings_500k.npy", description="Path to embeddings file"),
+    embeddings_path: str = Query("data/embeddings_500k.npy", description="Path to content representations file"),
     mapping_path: str = Query("data/embeddings_500k_mapping.csv", description="Path to mapping file"),
     articles_path: Optional[str] = Query(None, description="Path to articles DataFrame")
 ):
     """
-    Search for similar articles using embedding similarity.
+    Search for relevant articles based on meaning and content.
 
     Args:
         query: Search query text
         k: Number of results to return
-        embeddings_path: Path to embeddings .npy file
+        embeddings_path: Path to content representations .npy file
         mapping_path: Path to ID mapping CSV
         articles_path: Optional path to articles DataFrame for metadata
 
     Returns:
-        SearchResponse with top-k similar articles
+        SearchResponse with top-k relevant articles
     """
     try:
         logger.info(f"Search query: '{query}' (k={k})")
