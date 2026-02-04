@@ -66,19 +66,27 @@ data_df = None
 embeddings = None
 embeddings_mapping = None
 bm25 = None
+faiss_index = None
+embed_model = None
+embed_tokenizer = None
 
 # Load data on startup
 @app.on_event("startup")
 async def load_data():
     """Load preprocessed data and embeddings on startup"""
-    global data_df, embeddings, embeddings_mapping, bm25
+    global data_df, embeddings, embeddings_mapping, bm25, faiss_index, embed_model, embed_tokenizer
 
     try:
-        # Load preprocessed data - Try 500K first, fallback to 20K
+        # Load preprocessed data - Priority: 21M > 500K > 20K
+        data_path_21m = Path("data/preprocessed_21m.parquet")
         data_path_500k = Path("data/preprocessed_500K.parquet")
         data_path_20k = Path("data/preprocessed.parquet")
 
-        if data_path_500k.exists():
+        if data_path_21m.exists():
+            data_path = data_path_21m
+            data_df = pd.read_parquet(data_path)
+            print(f"✓ Loaded {len(data_df):,} articles from {data_path} (21M dataset)")
+        elif data_path_500k.exists():
             data_path = data_path_500k
             data_df = pd.read_parquet(data_path)
             print(f"✓ Loaded {len(data_df):,} articles from {data_path} (500K dataset)")
@@ -96,38 +104,62 @@ async def load_data():
             data_df['month'] = data_df['pub_date'].dt.month
             print(f"✓ Added year and month columns from pub_date")
 
-        # Load embeddings - Try 500K first, fallback to 20K
-        embeddings_path_500k = Path("data/embeddings_500k.npy")
-        mapping_path_500k = Path("data/embeddings_500k_mapping.csv")
-        embeddings_path_20k = Path("data/embeddings.npy")
-        mapping_path_20k = Path("data/embeddings_mapping.csv")
+        # Load FAISS index if available (21M scale) - Priority: 21M > 500K
+        import faiss
+        faiss_index_21m = Path("data/faiss_index_21m.bin")
+        faiss_index_500k = Path("data/faiss_index_500k.bin")
 
-        if embeddings_path_500k.exists() and mapping_path_500k.exists():
-            embeddings_path = embeddings_path_500k
-            mapping_path = mapping_path_500k
-            embeddings = np.load(embeddings_path)
-            embeddings_mapping = pd.read_csv(mapping_path)
-            print(f"✓ Loaded embeddings: {embeddings.shape} (500K dataset)")
-        elif embeddings_path_20k.exists() and mapping_path_20k.exists():
-            embeddings_path = embeddings_path_20k
-            mapping_path = mapping_path_20k
-            embeddings = np.load(embeddings_path)
-            embeddings_mapping = pd.read_csv(mapping_path)
-            print(f"✓ Loaded embeddings: {embeddings.shape} (20K dataset)")
+        if faiss_index_21m.exists():
+            faiss_index = faiss.read_index(str(faiss_index_21m))
+            print(f"✓ Loaded FAISS index: {faiss_index_21m} (ntotal={faiss_index.ntotal:,})")
+        elif faiss_index_500k.exists():
+            faiss_index = faiss.read_index(str(faiss_index_500k))
+            print(f"✓ Loaded FAISS index: {faiss_index_500k} (ntotal={faiss_index.ntotal:,})")
         else:
-            print(f"⚠ Warning: No embeddings found")
+            # Fall back to loading embeddings array (older 20K path)
+            embeddings_path_500k = Path("data/embeddings_500k.npy")
+            mapping_path_500k = Path("data/embeddings_500k_mapping.csv")
+            embeddings_path_20k = Path("data/embeddings.npy")
+            mapping_path_20k = Path("data/embeddings_mapping.csv")
 
+            if embeddings_path_500k.exists() and mapping_path_500k.exists():
+                embeddings_path = embeddings_path_500k
+                mapping_path = mapping_path_500k
+                embeddings = np.load(embeddings_path)
+                embeddings_mapping = pd.read_csv(mapping_path)
+                print(f"✓ Loaded embeddings: {embeddings.shape} (500K dataset)")
+            elif embeddings_path_20k.exists() and mapping_path_20k.exists():
+                embeddings_path = embeddings_path_20k
+                mapping_path = mapping_path_20k
+                embeddings = np.load(embeddings_path)
+                embeddings_mapping = pd.read_csv(mapping_path)
+                print(f"✓ Loaded embeddings: {embeddings.shape} (20K dataset)")
+            else:
+                print(f"⚠ Warning: No embeddings found")
 
-        # Build BM25 index for keyword search
+        # Load BERTweet model and tokenizer once (cached globally)
+        from transformers import AutoTokenizer, AutoModel
+        model_name = "vinai/bertweet-base"
+        print(f"Loading BERTweet model: {model_name}...")
+        embed_tokenizer = AutoTokenizer.from_pretrained(model_name)
+        embed_model = AutoModel.from_pretrained(model_name)
+        embed_model.to(get_device())
+        embed_model.eval()
+        print(f"✓ BERTweet model loaded and cached")
+
+        # Build BM25 index for keyword search (only if < 1M articles)
         if data_df is not None:
-            print("Building BM25 index for keyword search...")
-            from rank_bm25 import BM25Okapi
+            if len(data_df) <= 1_000_000:
+                print("Building BM25 index for keyword search...")
+                from rank_bm25 import BM25Okapi
 
-            # Tokenize documents for BM25
-            corpus = data_df['cleaned_text'].fillna('').tolist()
-            tokenized_corpus = [doc.split() for doc in corpus]
-            bm25 = BM25Okapi(tokenized_corpus)
-            print(f"✓ BM25 index built with {len(tokenized_corpus)} documents")
+                # Tokenize documents for BM25
+                corpus = data_df['cleaned_text'].fillna('').tolist()
+                tokenized_corpus = [doc.split() for doc in corpus]
+                bm25 = BM25Okapi(tokenized_corpus)
+                print(f"✓ BM25 index built with {len(tokenized_corpus)} documents")
+            else:
+                print(f"⚠ Skipping BM25 (>1M articles): search will use semantic-only mode")
 
     except Exception as e:
         print(f"❌ Error loading data: {e}")
@@ -202,25 +234,18 @@ async def search_articles(
         raise HTTPException(status_code=503, detail="Data not loaded")
 
     try:
+        import torch
+
+        device = get_device()
+
         # Initialize scores
         semantic_scores = np.zeros(len(data_df))
         keyword_scores = np.zeros(len(data_df))
 
-        # 1. SEMANTIC SEARCH (if alpha > 0 and embeddings available)
-        if alpha > 0 and embeddings is not None:
-            import torch
-            from transformers import AutoTokenizer, AutoModel
-
-            device = get_device()
-            model_name = "vinai/bertweet-base"
-
-            tokenizer = AutoTokenizer.from_pretrained(model_name)
-            model = AutoModel.from_pretrained(model_name)
-            model.to(device)
-            model.eval()
-
-            # Generate query embedding
-            encoded = tokenizer(
+        # 1. SEMANTIC SEARCH (if alpha > 0 and embeddings/FAISS available)
+        if alpha > 0 and (embeddings is not None or faiss_index is not None):
+            # Generate query embedding using cached model
+            encoded = embed_tokenizer(
                 [query],
                 padding=True,
                 truncation=True,
@@ -230,14 +255,21 @@ async def search_articles(
             encoded = {k: v.to(device) for k, v in encoded.items()}
 
             with torch.no_grad():
-                outputs = model(**encoded)
-                query_embedding = outputs.last_hidden_state[:, 0, :].cpu().numpy()[0]
+                outputs = embed_model(**encoded)
+                query_embedding = outputs.last_hidden_state[:, 0, :].cpu().numpy()[0].astype(np.float32)
 
-            # Compute cosine similarity
-            from sklearn.metrics.pairwise import cosine_similarity
-            semantic_scores = cosine_similarity([query_embedding], embeddings)[0]
+            # Use FAISS index if available (21M scale)
+            if faiss_index is not None:
+                # FAISS search
+                distances, indices = faiss_index.search(query_embedding.reshape(1, -1), k=len(data_df))
+                semantic_scores = distances[0]
+            else:
+                # Fallback to cosine similarity with in-memory embeddings
+                from sklearn.metrics.pairwise import cosine_similarity
+                semantic_scores = cosine_similarity([query_embedding], embeddings)[0]
 
         # 2. KEYWORD SEARCH (if alpha < 1 and BM25 available)
+        # At 21M articles, BM25 is skipped and alpha is forced to 1.0
         if alpha < 1 and bm25 is not None:
             # Tokenize query
             tokenized_query = query.lower().split()
@@ -250,6 +282,10 @@ async def search_articles(
                 keyword_scores = bm25_scores / bm25_scores.max()
             else:
                 keyword_scores = bm25_scores
+        elif alpha < 1 and bm25 is None:
+            # BM25 disabled at 21M: force semantic-only
+            alpha = 1.0
+            print(f"⚠ BM25 disabled (>1M articles): forcing semantic-only search")
 
         # 3. HYBRID COMBINATION
         # Combined score = alpha * semantic + (1 - alpha) * keyword
