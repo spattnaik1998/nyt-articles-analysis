@@ -14,7 +14,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source code
 COPY src/ src/
 COPY Makefile .
-COPY .env .
 
 # Create data directory for volume mounting
 RUN mkdir -p data
