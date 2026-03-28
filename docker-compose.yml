@@ -1,0 +1,104 @@
+version: "3.9"
+
+# Local development stack — mirrors the Railway service topology.
+# Run: docker compose up
+#
+# Services
+# --------
+#  redis            - Broker + result backend for Celery; L1 cache for embeddings/results
+#  embedding        - BERTweet embedding microservice  (port 8001)
+#  api              - Main FastAPI application          (port 8000)
+#  worker-topic     - Celery worker for topic-modeling queue
+#  worker-sentiment - Celery worker for sentiment queue
+
+services:
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  embedding:
+    build:
+      context: .
+      dockerfile: services/embedding_service/Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      PORT: "8001"
+      REDIS_URL: "redis://redis:6379/1"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data          # mount local data/ into container
+    environment:
+      REDIS_URL: "redis://redis:6379/0"
+      EMBEDDING_SERVICE_URL: "http://embedding:8001"
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
+      LOG_LEVEL: "INFO"
+    depends_on:
+      redis:
+        condition: service_healthy
+      embedding:
+        condition: service_healthy
+    command: >
+      uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+
+  worker-topic:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./data:/app/data
+    environment:
+      REDIS_URL: "redis://redis:6379/0"
+      EMBEDDING_SERVICE_URL: "http://embedding:8001"
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: >
+      celery -A src.worker.celery_app worker
+        --queues topic
+        --concurrency 2
+        --loglevel info
+        --hostname topic@%h
+
+  worker-sentiment:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./data:/app/data
+    environment:
+      REDIS_URL: "redis://redis:6379/0"
+      EMBEDDING_SERVICE_URL: "http://embedding:8001"
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: >
+      celery -A src.worker.celery_app worker
+        --queues sentiment
+        --concurrency 2
+        --loglevel info
+        --hostname sentiment@%h

@@ -1,0 +1,51 @@
+# Data files — mount a Railway Volume at /app/data instead
+data/
+
+# Python virtual environments
+venv/
+.venv/
+env/
+
+# Model weight caches (downloaded at runtime or baked into service image)
+/models/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Local development / editor artifacts
+.env
+.DS_Store
+*.egg-info/
+dist/
+build/
+.idea/
+.vscode/
+
+# Notebooks and scratch files
+*.ipynb
+notebooks/
+
+# Large one-off docs / reports not needed at runtime
+*.docx
+ANALYSIS_*.md
+BENCHMARK_*.md
+CACHE_*.md
+EMBEDDING_CACHE*.md
+SENTIMENT_PARALLEL*.md
+SSE_STREAMING*.md
+IMPLEMENTATION_COMPLETE.txt
+INSTRUMENTATION_PATCH.md
+NEXT_STEPS_CHECKLIST.md
+ASYNC_EXTRACTION_GUIDE.md
+SYSTEM_MAP.md
+SKILL.md
+00_START_HERE.md
+*_QUICK_START.md
+*_INDEX.md
+*_GUIDE.md
+*_SUMMARY.md
+*_REPORT.md
+*_demo.py
+benchmark_baseline.py
+tests/
