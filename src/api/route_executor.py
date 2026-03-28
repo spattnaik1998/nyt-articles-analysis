@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 from src.api.query_router import RoutingDecision, QueryMode
+from src.models.redis_cache import get_redis_cache
 
 logger = logging.getLogger(__name__)
 
@@ -148,6 +149,20 @@ def execute_fast(
     t0 = time.time()
     timing: dict[str, float] = {}
 
+    # 0. Check result cache (Redis L1 -> memory L2)
+    try:
+        rc = get_redis_cache()
+        cached = rc.get_results(query, mode="fast", k=k, rerank=int(rerank))
+        if cached is not None:
+            timing["result_cache"] = "hit"
+            timing["total_ms"] = round((time.time() - t0) * 1000, 2)
+            logger.info("[FAST] result cache HIT  latency=%.1fms query=%r",
+                        timing["total_ms"], query[:60])
+            rc.log_metrics()
+            return cached, timing
+    except Exception as exc:
+        logger.debug("[FAST] result cache lookup skipped: %s", exc)
+
     # 1. Embed (cache-first)
     t_embed = time.time()
     embedding = _embed_query(query, embed_tokenizer, embed_model)
@@ -186,6 +201,14 @@ def execute_fast(
                  timing["embed_ms"], timing["search_ms"],
                  timing.get("rerank_total_ms", 0.0),
                  timing["total_ms"], len(results))
+
+    # Write results to cache (both tiers)
+    if results:
+        try:
+            get_redis_cache().set_results(query, results, mode="fast", k=k, rerank=int(rerank))
+        except Exception as exc:
+            logger.debug("[FAST] result cache write skipped: %s", exc)
+
     return results, timing
 
 
@@ -219,6 +242,24 @@ def execute_deep(
     """
     t0 = time.time()
     timing: dict[str, float] = {}
+
+    # 0. Check result cache — skip for LLM extraction (non-deterministic/expensive)
+    if not run_llm_extraction:
+        try:
+            rc = get_redis_cache()
+            cached = rc.get_results(
+                query, mode="deep", k=k,
+                alpha=round(alpha, 3), rerank=int(rerank),
+            )
+            if cached is not None:
+                timing["result_cache"] = "hit"
+                timing["total_ms"] = round((time.time() - t0) * 1000, 2)
+                logger.info("[DEEP] result cache HIT  latency=%.1fms query=%r",
+                            timing["total_ms"], query[:60])
+                rc.log_metrics()
+                return cached, timing
+        except Exception as exc:
+            logger.debug("[DEEP] result cache lookup skipped: %s", exc)
 
     # 1. Embed
     t_embed = time.time()
@@ -342,4 +383,15 @@ def execute_deep(
         timing.get("rerank_total_ms", 0.0),
         timing["total_ms"], len(results),
     )
+
+    # Write results to cache (skip when LLM was run — already excluded above)
+    if results and not run_llm_extraction:
+        try:
+            get_redis_cache().set_results(
+                query, results, mode="deep", k=k,
+                alpha=round(alpha, 3), rerank=int(rerank),
+            )
+        except Exception as exc:
+            logger.debug("[DEEP] result cache write skipped: %s", exc)
+
     return results, timing

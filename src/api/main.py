@@ -180,6 +180,21 @@ async def load_data():
         except Exception as warmup_err:
             print(f"⚠ Reranker warmup skipped: {warmup_err}")
 
+        # Initialise Redis distributed cache
+        try:
+            import os
+            from src.models.redis_cache import init_redis_cache
+            redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+            rc = init_redis_cache(redis_url)
+            ping = rc.ping()
+            if ping["status"] == "ok":
+                print(f"✓ Redis cache connected: {redis_url} ({ping['latency_ms']} ms)")
+            else:
+                print(f"⚠ Redis unavailable ({ping.get('reason', ping.get('error', ''))}); "
+                      f"in-memory fallback active")
+        except Exception as redis_err:
+            print(f"⚠ Redis cache init skipped: {redis_err}; in-memory fallback active")
+
     except Exception as e:
         print(f"❌ Error loading data: {e}")
 
@@ -209,6 +224,24 @@ async def root():
         "docs_url": "/docs",
         "data_loaded": data_df is not None,
         "embeddings_loaded": embeddings is not None,
+    }
+
+
+@app.get("/cache/stats")
+async def cache_stats():
+    """
+    Cache hit-rate metrics across both tiers (Redis and in-memory fallback).
+
+    Returns per-tier breakdown: hits, misses, hit_rate
+    and overall aggregated stats plus Redis connection status.
+    """
+    from src.models.redis_cache import get_redis_cache
+    from src.models.embedding_cache import get_global_cache
+    rc  = get_redis_cache()
+    mc  = get_global_cache()
+    return {
+        "redis_cache":  rc.get_metrics(),
+        "memory_cache": mc.get_stats(),
     }
 
 

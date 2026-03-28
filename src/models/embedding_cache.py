@@ -240,66 +240,94 @@ def cache_query_embedding(
     **kwargs
 ) -> Tuple[np.ndarray, dict]:
     """
-    Get query embedding with caching.
+    Get query embedding with two-tier caching: Redis (L1) -> memory (L2).
 
-    This is the main caching wrapper function. It checks the cache before
-    computing embeddings and stores results after computation.
+    Lookup order:
+      1. Redis cache        — distributed, 24 h TTL
+      2. In-memory TTLCache — per-process, 1 h TTL (fallback when Redis down)
+      3. Compute fresh; store in both tiers
 
     Args:
         query (str): Query text to embed
-        embedding_fn: Function to compute embedding if not cached
-                      Must accept query as first arg and return np.ndarray
-        *args: Positional args to pass to embedding_fn (after query)
-        use_cache (bool): Whether to use cache (default: True)
-        **kwargs: Keyword args to pass to embedding_fn
+        embedding_fn: Callable that accepts *query* as first positional arg
+                      and returns np.ndarray
+        *args: Extra positional args forwarded to embedding_fn
+        use_cache (bool): Set False to bypass cache entirely (default: True)
+        **kwargs: Extra keyword args forwarded to embedding_fn
 
     Returns:
         Tuple[np.ndarray, dict]: (embedding, metadata)
-            - embedding: Query embedding (768D for BERTweet)
-            - metadata: Dict with 'cached', 'latency_ms', etc.
+            metadata keys:
+              cached             bool
+              cache_tier         'redis' | 'memory' | None
+              latency_ms         float   — wall time including cache lookup
+              compute_latency_ms float   — model inference time (miss only)
+              cache_stats        dict    — in-memory cache counters
     """
-    t_start = time.time()
-    cache = get_global_cache()
+    t_start   = time.time()
+    mem_cache = get_global_cache()
 
-    # Try cache first
     if use_cache:
-        cached_embedding = cache.get(query)
-        if cached_embedding is not None:
+        # ── Tier 1: Redis (L1) ────────────────────────────────────────────
+        try:
+            from src.models.redis_cache import get_redis_cache
+            redis_emb = get_redis_cache().get_embedding(query)
+            if redis_emb is not None:
+                latency_ms = (time.time() - t_start) * 1000
+                mem_cache.put(query, redis_emb)   # backfill memory tier
+                logger.info(
+                    "[CACHE HIT tier=redis]  %.2fms  %s",
+                    latency_ms, mem_cache.get_stats_str(),
+                )
+                return redis_emb, {
+                    "cached":      True,
+                    "cache_tier":  "redis",
+                    "latency_ms":  latency_ms,
+                    "cache_stats": mem_cache.get_stats(),
+                }
+        except Exception as exc:
+            logger.debug("[CACHE] Redis embedding lookup skipped: %s", exc)
+
+        # ── Tier 2: In-memory TTLCache (L2) ───────────────────────────────
+        mem_emb = mem_cache.get(query)
+        if mem_emb is not None:
             latency_ms = (time.time() - t_start) * 1000
-            metadata = {
-                "cached": True,
-                "latency_ms": latency_ms,
-                "cache_stats": cache.get_stats(),
-            }
             logger.info(
-                f"[CACHE HIT] Query embedding retrieved in {latency_ms:.2f}ms "
-                f"(saved ~100-150ms vs fresh compute). {cache.get_stats_str()}"
+                "[CACHE HIT tier=memory] %.2fms  %s",
+                latency_ms, mem_cache.get_stats_str(),
             )
-            return cached_embedding, metadata
+            return mem_emb, {
+                "cached":      True,
+                "cache_tier":  "memory",
+                "latency_ms":  latency_ms,
+                "cache_stats": mem_cache.get_stats(),
+            }
 
-    # Not in cache, compute
-    t_compute_start = time.time()
-    embedding = embedding_fn(query, *args, **kwargs)
-    t_compute_ms = (time.time() - t_compute_start) * 1000
+    # ── Cache miss — compute ──────────────────────────────────────────────
+    t_compute  = time.time()
+    embedding  = embedding_fn(query, *args, **kwargs)
+    compute_ms = (time.time() - t_compute) * 1000
 
-    # Store in cache
     if use_cache:
-        cache.put(query, embedding)
+        mem_cache.put(query, embedding)
+        try:
+            from src.models.redis_cache import get_redis_cache
+            get_redis_cache().set_embedding(query, embedding)
+        except Exception as exc:
+            logger.debug("[CACHE] Redis embedding write skipped: %s", exc)
 
     latency_ms = (time.time() - t_start) * 1000
-    metadata = {
-        "cached": False,
-        "latency_ms": latency_ms,
-        "compute_latency_ms": t_compute_ms,
-        "cache_stats": cache.get_stats(),
-    }
-
     logger.info(
-        f"[CACHE MISS] Query embedding computed in {t_compute_ms:.2f}ms "
-        f"(total with cache check: {latency_ms:.2f}ms). {cache.get_stats_str()}"
+        "[CACHE MISS] computed %.2fms  total %.2fms  %s",
+        compute_ms, latency_ms, mem_cache.get_stats_str(),
     )
-
-    return embedding, metadata
+    return embedding, {
+        "cached":             False,
+        "cache_tier":         None,
+        "latency_ms":         latency_ms,
+        "compute_latency_ms": compute_ms,
+        "cache_stats":        mem_cache.get_stats(),
+    }
 
 
 def reset_global_cache() -> None:
