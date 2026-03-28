@@ -46,6 +46,7 @@ from src.models.streaming_extraction import (
 from src.models.topic_models import generate_topic_description
 from src.api.query_router import get_router, QueryMode
 from src.api.route_executor import execute_fast, execute_deep, log_route
+from src.api.embedding_client import init_embedding_client, get_embedding_client
 from wordcloud import WordCloud
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
@@ -149,15 +150,34 @@ async def load_data():
             else:
                 print(f"⚠ Warning: No embeddings found")
 
-        # Load BERTweet model and tokenizer once (cached globally)
-        from transformers import AutoTokenizer, AutoModel
-        model_name = "vinai/bertweet-base"
-        print(f"Loading BERTweet model: {model_name}...")
-        embed_tokenizer = AutoTokenizer.from_pretrained(model_name)
-        embed_model = AutoModel.from_pretrained(model_name)
-        embed_model.to(get_device())
-        embed_model.eval()
-        print(f"✓ BERTweet model loaded and cached")
+        # ── Embedding layer setup ─────────────────────────────────────────
+        import os as _os
+        _emb_svc_url = _os.environ.get("EMBEDDING_SERVICE_URL", "").strip()
+
+        if _emb_svc_url:
+            # Embedding microservice mode: delegate all embedding calls over HTTP
+            _timeout = float(_os.environ.get("EMBEDDING_SERVICE_TIMEOUT", "5.0"))
+            ec = init_embedding_client(base_url=_emb_svc_url, timeout=_timeout)
+            print(f"✓ Embedding service configured: {_emb_svc_url}")
+            # Local model stays None; the client will call the service
+            # A local model is still loaded below as fallback if env flag is set
+            _load_local = _os.environ.get("LOAD_LOCAL_EMBEDDING_FALLBACK", "false").lower() == "true"
+        else:
+            # No service configured — load model locally (original behaviour)
+            _load_local  = True
+            _emb_svc_url = None
+
+        if _load_local:
+            from transformers import AutoTokenizer, AutoModel
+            model_name = "vinai/bertweet-base"
+            print(f"Loading BERTweet model locally: {model_name}...")
+            embed_tokenizer = AutoTokenizer.from_pretrained(model_name)
+            embed_model = AutoModel.from_pretrained(model_name)
+            embed_model.to(get_device())
+            embed_model.eval()
+            print(f"✓ BERTweet model loaded (local {'fallback' if _emb_svc_url else 'primary'})")
+        else:
+            print("⚠ Local BERTweet model not loaded; embedding service is primary")
 
         # Build BM25 index for keyword search (only if < 1M articles)
         if data_df is not None:
@@ -225,6 +245,17 @@ async def root():
         "data_loaded": data_df is not None,
         "embeddings_loaded": embeddings is not None,
     }
+
+
+@app.get("/embedding/health", summary="Embedding service health passthrough")
+async def embedding_health():
+    """
+    Proxy the embedding microservice /health endpoint.
+    Returns the service status and cache metrics, or an 'unreachable' status
+    when the service is down (main app falls back to local model).
+    """
+    client = get_embedding_client()
+    return await client.health()
 
 
 @app.get("/cache/stats")
@@ -306,7 +337,7 @@ async def search_articles(
         t_exec_start = time.time()
 
         if resolved_mode == QueryMode.FAST:
-            results, timing = execute_fast(
+            results, timing = await execute_fast(
                 query=query,
                 k=k,
                 faiss_index=faiss_index,
@@ -317,7 +348,7 @@ async def search_articles(
                 rerank=rerank,
             )
         else:  # DEEP
-            results, timing = execute_deep(
+            results, timing = await execute_deep(
                 query=query,
                 k=k,
                 alpha=alpha,

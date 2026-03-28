@@ -16,6 +16,7 @@ import pandas as pd
 
 from src.api.query_router import RoutingDecision, QueryMode
 from src.models.redis_cache import get_redis_cache
+from src.api.embedding_client import get_embedding_client
 
 logger = logging.getLogger(__name__)
 
@@ -49,27 +50,46 @@ def log_route(
 # Shared: embed query
 # ---------------------------------------------------------------------------
 
-def _embed_query(
+async def _embed_query(
     query: str,
     embed_tokenizer,
     embed_model,
 ) -> Optional[np.ndarray]:
-    """Return a 1-D float32 embedding, or None on failure."""
+    """
+    Return a 1-D float32 embedding for *query*, or None on total failure.
+
+    Resolution order
+    ----------------
+    1. Embedding microservice (async HTTP, 3 retries with exponential back-off)
+    2. Local BERTweet model via the two-tier Redis/memory cache (fallback when
+       the service is down or `embed_model` is None)
+    """
+    # ── 1. Embedding service (primary) ────────────────────────────────────
+    try:
+        client = get_embedding_client()
+        emb    = await client.embed(query)
+        if emb is not None:
+            logger.debug("[EMBED] service OK  query=%r", query[:60])
+            return emb
+    except Exception as exc:
+        logger.debug("[EMBED] service call error: %s", exc)
+
+    # ── 2. Local model fallback ────────────────────────────────────────────
+    if embed_model is None:
+        logger.warning("[EMBED] service unavailable and no local model loaded")
+        return None
     try:
         from src.models.cached_embeddings import encode_query_cached
         embedding, meta = encode_query_cached(
             query, embed_tokenizer, embed_model, use_cache=True
         )
-        cached = meta.get("cached", False)
-        latency = meta.get("latency_ms", 0)
         logger.debug(
-            "[EMBED] cache_%s latency=%.1fms",
-            "HIT" if cached else "MISS",
-            latency,
+            "[EMBED] local fallback  tier=%s  %.1fms",
+            meta.get("cache_tier"), meta.get("latency_ms", 0),
         )
         return embedding
     except Exception as exc:
-        logger.warning("[EMBED] encode failed: %s", exc)
+        logger.warning("[EMBED] local encode failed: %s", exc)
         return None
 
 
@@ -127,7 +147,7 @@ def _faiss_search(
 # Fast path
 # ---------------------------------------------------------------------------
 
-def execute_fast(
+async def execute_fast(
     query: str,
     k: int,
     faiss_index,
@@ -163,9 +183,9 @@ def execute_fast(
     except Exception as exc:
         logger.debug("[FAST] result cache lookup skipped: %s", exc)
 
-    # 1. Embed (cache-first)
+    # 1. Embed (service → local fallback, both cache-aware)
     t_embed = time.time()
-    embedding = _embed_query(query, embed_tokenizer, embed_model)
+    embedding = await _embed_query(query, embed_tokenizer, embed_model)
     timing["embed_ms"] = round((time.time() - t_embed) * 1000, 2)
 
     if embedding is None:
@@ -216,7 +236,7 @@ def execute_fast(
 # Deep path
 # ---------------------------------------------------------------------------
 
-def execute_deep(
+async def execute_deep(
     query: str,
     k: int,
     alpha: float,
@@ -261,9 +281,9 @@ def execute_deep(
         except Exception as exc:
             logger.debug("[DEEP] result cache lookup skipped: %s", exc)
 
-    # 1. Embed
+    # 1. Embed (service → local fallback, both cache-aware)
     t_embed = time.time()
-    embedding = _embed_query(query, embed_tokenizer, embed_model)
+    embedding = await _embed_query(query, embed_tokenizer, embed_model)
     timing["embed_ms"] = round((time.time() - t_embed) * 1000, 2)
 
     if embedding is None:
