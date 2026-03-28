@@ -227,6 +227,13 @@ class TopicRequest(BaseModel):
     num_topics: int = 10
 
 
+class SentimentJobRequest(BaseModel):
+    year: Optional[int] = None
+    section: Optional[str] = None
+    sample_size: int = 500
+    models: Optional[list] = None
+
+
 @app.get("/app")
 async def serve_frontend():
     """Serve the frontend application"""
@@ -393,221 +400,181 @@ async def search_articles(
         raise HTTPException(status_code=500, detail=f"Search failed: {exc}")
 
 
-@app.post("/topic/run")
-async def run_topic_modeling(request: TopicRequest):
+@app.post("/topic/run", status_code=202)
+async def submit_topic_modeling(request: TopicRequest):
     """
-    Run topic modeling on filtered articles
+    Submit a topic-modelling job to the task queue.
 
-    This endpoint filters articles by year and section, then runs topic modeling.
-    Returns a job ID for tracking progress.
+    Returns immediately with a job ID.
+    Poll **GET /jobs/{job_id}** for status and results.
+
+    The job runs on a dedicated ``topic`` Celery queue and retries up to 3
+    times (10 s → 20 s → 40 s back-off) on transient errors.
     """
-    if data_df is None:
-        raise HTTPException(status_code=503, detail="Data not loaded")
-
     try:
-        # Filter data
-        filtered_df = data_df[
-            (data_df['year'] == request.year) &
-            (data_df['section_name'] == request.section)
-        ]
-
-        if len(filtered_df) == 0:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No articles found for year={request.year}, section={request.section}"
-            )
-
-        # Get texts
-        texts = filtered_df['cleaned_text'].fillna('').tolist()
-
-        # Simple topic extraction using TF-IDF (no external dependencies)
-        from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
-        from sklearn.decomposition import LatentDirichletAllocation
-
-        # Use LDA from sklearn for simplicity
-        if request.model == "lda" or request.model == "bertopic":
-            # Vectorize
-            vectorizer = CountVectorizer(
-                max_features=1000,
-                stop_words='english',
-                max_df=0.8,
-                min_df=2
-            )
-
-            doc_term_matrix = vectorizer.fit_transform(texts)
-
-            # Run LDA
-            lda = LatentDirichletAllocation(
-                n_components=request.num_topics,
-                random_state=42,
-                max_iter=10,
-                learning_method='online',
-                n_jobs=-1
-            )
-
-            lda.fit(doc_term_matrix)
-
-            # Extract top words for each topic
-            feature_names = vectorizer.get_feature_names_out()
-            topics = []
-
-            for topic_idx, topic in enumerate(lda.components_):
-                top_indices = topic.argsort()[-10:][::-1]
-                top_words = [feature_names[i] for i in top_indices]
-
-                # Generate human-readable description
-                description = generate_topic_description(top_words, topic_idx)
-
-                topics.append({
-                    'topic_id': topic_idx,
-                    'description': description,
-                    'keywords': ', '.join(top_words[:5]),
-                    'words': top_words,
-                    'topic_name': description  # Use description as topic_name
-                })
-
-        # Generate job ID
-        import uuid
-        job_id = str(uuid.uuid4())
-
+        from src.worker.tasks import run_topic_modeling
+        task = run_topic_modeling.apply_async(
+            kwargs=dict(
+                year       = request.year,
+                section    = request.section,
+                model      = request.model,
+                num_topics = request.num_topics,
+            ),
+            queue = "topic",
+        )
+        logger.info("[API] topic job submitted  job_id=%s  year=%d section=%s",
+                    task.id, request.year, request.section)
         return {
-            "job_id": job_id,
-            "status": "completed",
-            "message": f"Topic modeling completed on {len(filtered_df)} articles using {request.model.upper()}",
-            "topics": topics
+            "job_id":  task.id,
+            "status":  "queued",
+            "message": (
+                f"Topic modelling job queued for year={request.year}, "
+                f"section={request.section!r}, model={request.model}, "
+                f"num_topics={request.num_topics}. "
+                f"Poll GET /jobs/{task.id} for progress."
+            ),
         }
+    except Exception as exc:
+        logger.error("[API] failed to submit topic job: %s", exc)
+        raise HTTPException(status_code=503,
+                            detail=f"Task queue unavailable: {exc}")
 
-    except Exception as e:
-        import traceback
-        error_detail = f"{str(e)}\n{traceback.format_exc()}"
-        raise HTTPException(status_code=500, detail=f"Topic modeling failed: {error_detail}")
+
+@app.post("/sentiment/run", status_code=202)
+async def submit_sentiment_analysis(request: SentimentJobRequest):
+    """
+    Submit a sentiment-analysis job to the task queue.
+
+    Returns immediately with a job ID.
+    Poll **GET /jobs/{job_id}** for status and results.
+
+    Retries up to 3 times (10 s → 20 s → 40 s) on transient errors.
+    """
+    try:
+        from src.worker.tasks import run_sentiment_analysis
+        task = run_sentiment_analysis.apply_async(
+            kwargs=dict(
+                year        = request.year,
+                section     = request.section,
+                sample_size = request.sample_size,
+                models      = request.models,
+            ),
+            queue = "sentiment",
+        )
+        logger.info("[API] sentiment job submitted  job_id=%s", task.id)
+        return {
+            "job_id":  task.id,
+            "status":  "queued",
+            "message": (
+                f"Sentiment analysis job queued "
+                f"(sample_size={request.sample_size}, "
+                f"year={request.year}, section={request.section!r}). "
+                f"Poll GET /jobs/{task.id} for progress."
+            ),
+        }
+    except Exception as exc:
+        logger.error("[API] failed to submit sentiment job: %s", exc)
+        raise HTTPException(status_code=503,
+                            detail=f"Task queue unavailable: {exc}")
 
 
-@app.get("/topic/status/{job_id}")
-async def get_topic_status(job_id: str):
-    """Get status of topic modeling job"""
-    # Simplified - in production, track actual job status
-    return {
-        "job_id": job_id,
-        "status": "completed",
-        "progress": 1.0,
-        "message": "Topic modeling completed"
-    }
+@app.get("/jobs/{job_id}", summary="Poll any job for status and result")
+async def get_job_status(job_id: str):
+    """
+    Universal job status endpoint — works for both topic and sentiment jobs.
+
+    Returned ``status`` values
+    --------------------------
+    ``queued``    Task is waiting in the queue (not yet picked up).
+    ``running``   Worker is actively processing; ``progress`` 0.0–1.0 and
+                  ``stage`` label are included when available.
+    ``completed`` Task finished successfully; full result in ``result``.
+    ``failed``    Task raised an exception; human-readable message in ``error``.
+    ``retrying``  Worker encountered a transient error and will retry.
+    ``cancelled`` Task was revoked before completion.
+    """
+    from src.worker.job_store import get_job_status
+    return get_job_status(job_id)
+
+
+@app.delete("/jobs/{job_id}", summary="Cancel a queued or running job")
+async def cancel_job(job_id: str):
+    """Cancel a pending or running job. Has no effect if already completed."""
+    from src.worker.job_store import cancel_job as _cancel
+    ok = _cancel(job_id)
+    if ok:
+        return {"job_id": job_id, "status": "cancelled"}
+    raise HTTPException(status_code=500, detail="Failed to cancel job")
 
 
 @app.get("/sentiment/report")
 async def get_sentiment_report(
     year: Optional[int] = None,
-    section: Optional[str] = None
+    section: Optional[str] = None,
 ):
     """
-    Get sentiment analysis report
+    Fast read of **pre-computed** sentiment columns already in the dataset.
 
-    Args:
-        year: Optional filter by year
-        section: Optional filter by section
-
-    Returns:
-        Sentiment statistics and distribution
+    If the dataset does not contain sentiment columns, returns a 202 response
+    telling the caller to submit a job via ``POST /sentiment/run`` instead of
+    blocking the API for potentially minutes.
     """
     if data_df is None:
         raise HTTPException(status_code=503, detail="Data not loaded")
 
-    try:
-        # Filter data
-        filtered_df = data_df.copy()
+    filtered_df = data_df.copy()
+    filters: dict = {}
+    if year:
+        filtered_df = filtered_df[filtered_df["year"] == year]
+        filters["year"] = year
+    if section:
+        filtered_df = filtered_df[filtered_df["section_name"] == section]
+        filters["section"] = section
 
-        filters = {}
-        if year:
-            filtered_df = filtered_df[filtered_df['year'] == year]
-            filters['year'] = year
-        if section:
-            filtered_df = filtered_df[filtered_df['section_name'] == section]
-            filters['section'] = section
+    if len(filtered_df) == 0:
+        raise HTTPException(status_code=404,
+                            detail="No articles found with given filters")
 
-        if len(filtered_df) == 0:
-            raise HTTPException(status_code=404, detail="No articles found with given filters")
+    sentiment_cols = [c for c in filtered_df.columns if c.endswith("_label")]
 
-        # Check if sentiment columns exist
-        sentiment_cols = [col for col in filtered_df.columns if col.endswith('_label')]
-
-        if not sentiment_cols:
-            # Run sentiment analysis on a sample
-            sample_size = min(100, len(filtered_df))
-            sample_df = filtered_df.head(sample_size)
-
-            # Intelligently select models based on section
-            # If a section is specified, use recommended models for that section
-            if section:
-                selected_models = get_recommended_models_for_section(section)
-            else:
-                # Auto-select based on sections in the sample
-                selected_models = None  # Let batch_infer auto-select
-
-            # Run sentiment analysis with intelligent model selection
-            result_df = batch_infer(
-                sample_df,
-                text_col='cleaned_text',
-                models=selected_models,
-                auto_select_models=(selected_models is None),
-                batch_size=16,
-                verbose=False
-            )
-
-            # Generate reports for all models used
-            models_data = {}
-            sentiment_cols = [col for col in result_df.columns if col.endswith('_label')]
-
-            for col in sentiment_cols:
-                model_name = col.replace('_label', '')
-                score_col = f'{model_name}_score'
-
-                if score_col in result_df.columns:
-                    label_dist = result_df[col].value_counts().to_dict()
-                    pie_chart = generate_sentiment_pie_chart(
-                        label_distribution=label_dist,
-                        model_name=model_name,
-                        total_count=len(result_df)
-                    )
-
-                    models_data[model_name] = {
-                        'total_classified': len(result_df),
-                        'average_confidence': float(result_df[score_col].mean()),
-                        'label_distribution': label_dist,
-                        'pie_chart': pie_chart,
-                        'description': MODEL_REGISTRY.get(model_name, {}).get('description', '')
-                    }
-        else:
-            # Use existing sentiment data
-            models_data = {}
-            for col in sentiment_cols:
-                model_name = col.replace('_label', '')
-                score_col = f'{model_name}_score'
-
-                if score_col in filtered_df.columns:
-                    label_dist = filtered_df[col].value_counts().to_dict()
-                    pie_chart = generate_sentiment_pie_chart(
-                        label_distribution=label_dist,
-                        model_name=model_name,
-                        total_count=len(filtered_df)
-                    )
-
-                    models_data[model_name] = {
-                        'total_classified': len(filtered_df),
-                        'average_confidence': float(filtered_df[score_col].mean()),
-                        'label_distribution': label_dist,
-                        'pie_chart': pie_chart,
-                        'description': MODEL_REGISTRY.get(model_name, {}).get('description', '')
-                    }
-
+    if not sentiment_cols:
+        # No pre-computed data — guide caller to async job endpoint
         return {
             "total_articles": len(filtered_df),
-            "filters": filters,
-            "models": models_data
+            "filters":        filters,
+            "models":         {},
+            "note": (
+                "No pre-computed sentiment data found. "
+                "Submit a job via POST /sentiment/run and poll GET /jobs/{job_id}."
+            ),
         }
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Sentiment report failed: {str(e)}")
+    # Serve pre-computed columns synchronously (fast path)
+    models_data: dict = {}
+    for col in sentiment_cols:
+        model_name = col.replace("_label", "")
+        score_col  = f"{model_name}_score"
+        if score_col not in filtered_df.columns:
+            continue
+        label_dist = filtered_df[col].value_counts().to_dict()
+        pie_chart  = generate_sentiment_pie_chart(
+            label_distribution = label_dist,
+            model_name         = model_name,
+            total_count        = len(filtered_df),
+        )
+        models_data[model_name] = {
+            "total_classified":   len(filtered_df),
+            "average_confidence": float(filtered_df[score_col].mean()),
+            "label_distribution": label_dist,
+            "pie_chart":          pie_chart,
+            "description":        MODEL_REGISTRY.get(model_name, {}).get("description", ""),
+        }
+
+    return {
+        "total_articles": len(filtered_df),
+        "filters":        filters,
+        "models":         models_data,
+    }
 
 
 # Cache monitoring endpoint
