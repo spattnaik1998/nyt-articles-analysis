@@ -1,14 +1,18 @@
 """FastAPI main application entry point"""
 
 import sys
+import time
+import logging
 from pathlib import Path
 import pandas as pd
 import numpy as np
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import StreamingResponse, FileResponse
+
+logger = logging.getLogger(__name__)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -20,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.models.similarity import recommend_by_embedding
 from src.models.embeddings import build_bertweet_embeddings, get_device
+from src.models.cached_embeddings import encode_query_cached, log_cache_stats
 from src.models.sentiment import (
     batch_infer,
     MODEL_REGISTRY,
@@ -33,7 +38,14 @@ from src.models.extraction import (
     batch_extract_with_verification,
     extract_and_verify_book_meta
 )
+from src.models.streaming_extraction import (
+    stream_extract_article,
+    stream_extract_batch,
+    format_sse_event
+)
 from src.models.topic_models import generate_topic_description
+from src.api.query_router import get_router, QueryMode
+from src.api.route_executor import execute_fast, execute_deep, log_route
 from wordcloud import WordCloud
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
@@ -161,6 +173,13 @@ async def load_data():
             else:
                 print(f"⚠ Skipping BM25 (>1M articles): search will use semantic-only mode")
 
+        # Pre-load cross-encoder so the first reranked request is fast
+        try:
+            from src.models.reranker import warmup as reranker_warmup
+            reranker_warmup()
+        except Exception as warmup_err:
+            print(f"⚠ Reranker warmup skipped: {warmup_err}")
+
     except Exception as e:
         print(f"❌ Error loading data: {e}")
 
@@ -214,113 +233,100 @@ async def health():
 async def search_articles(
     query: str = Query(..., description="Search query"),
     k: int = Query(5, ge=1, le=50, description="Number of results"),
-    alpha: float = Query(0.5, ge=0.0, le=1.0, description="Search mode: 0=keyword only, 1=meaning-based only, 0.5=balanced")
+    alpha: float = Query(0.5, ge=0.0, le=1.0, description="Semantic weight (0=keyword, 1=semantic, 0.5=hybrid)"),
+    mode: str = Query("auto", description="Execution mode: 'auto' (router decides), 'fast' (FAISS+cache only), 'deep' (full pipeline)"),
+    llm_extract: bool = Query(False, description="Deep mode only: run LLM book-metadata extraction on results"),
+    rerank: bool = Query(False, description="Re-rank FAISS candidates with a cross-encoder (ms-marco-MiniLM-L-6-v2); requires sentence-transformers"),
 ):
     """
-    Smart search combining meaning-based and keyword matching
+    Smart search with automatic Fast / Deep routing.
 
-    Args:
-        query: Natural language search query
-        k: Number of results to return (1-50)
-        alpha: Search mode balance (0-1)
-               - 0.0 = Pure keyword search
-               - 1.0 = Pure meaning-based search
-               - 0.5 = Balanced hybrid (recommended)
+    **Fast mode** (default for simple queries):
+    - Cached BERTweet embedding + FAISS only
+    - No BM25, no LLM calls
+    - Typical latency: 20–100 ms
 
-    Returns:
-        List of relevant articles with metadata and scores
+    **Deep mode** (triggered for complex/analytical queries):
+    - Cached embedding + FAISS + BM25 hybrid fusion
+    - Optional LLM book-metadata extraction (`llm_extract=true`)
+    - Typical latency: 200 ms – 15 s (with LLM)
+
+    **Auto mode** (default):
+    - Router classifies query complexity and selects the appropriate path.
+    - Pass `mode=fast` or `mode=deep` to override the router.
+
+    Returns routing decision metadata alongside results.
     """
     if data_df is None:
         raise HTTPException(status_code=503, detail="Data not loaded")
 
+    t_total_start = time.time()
+
     try:
-        import torch
+        # ── 1. Routing decision ───────────────────────────────────────────
+        router = get_router()
+        override = mode if mode in ("fast", "deep") else None
+        decision = router.resolve(query, override=override)
+        resolved_mode = decision.mode   # QueryMode.FAST or QueryMode.DEEP
 
-        device = get_device()
+        # ── 2. Execute chosen path ────────────────────────────────────────
+        t_exec_start = time.time()
 
-        # Initialize scores
-        semantic_scores = np.zeros(len(data_df))
-        keyword_scores = np.zeros(len(data_df))
-
-        # 1. SEMANTIC SEARCH (if alpha > 0 and embeddings/FAISS available)
-        if alpha > 0 and (embeddings is not None or faiss_index is not None):
-            # Generate query embedding using cached model
-            encoded = embed_tokenizer(
-                [query],
-                padding=True,
-                truncation=True,
-                max_length=128,
-                return_tensors='pt'
+        if resolved_mode == QueryMode.FAST:
+            results, timing = execute_fast(
+                query=query,
+                k=k,
+                faiss_index=faiss_index,
+                embeddings_mapping=embeddings_mapping,
+                data_df=data_df,
+                embed_tokenizer=embed_tokenizer,
+                embed_model=embed_model,
+                rerank=rerank,
             )
-            encoded = {k: v.to(device) for k, v in encoded.items()}
+        else:  # DEEP
+            results, timing = execute_deep(
+                query=query,
+                k=k,
+                alpha=alpha,
+                faiss_index=faiss_index,
+                embeddings_mapping=embeddings_mapping,
+                data_df=data_df,
+                embed_tokenizer=embed_tokenizer,
+                embed_model=embed_model,
+                bm25=bm25,
+                run_llm_extraction=llm_extract,
+                rerank=rerank,
+            )
 
-            with torch.no_grad():
-                outputs = embed_model(**encoded)
-                query_embedding = outputs.last_hidden_state[:, 0, :].cpu().numpy()[0].astype(np.float32)
+        exec_ms = round((time.time() - t_exec_start) * 1000, 2)
+        total_ms = round((time.time() - t_total_start) * 1000, 2)
 
-            # Use FAISS index if available (21M scale)
-            if faiss_index is not None:
-                # FAISS search
-                distances, indices = faiss_index.search(query_embedding.reshape(1, -1), k=len(data_df))
-                semantic_scores = distances[0]
-            else:
-                # Fallback to cosine similarity with in-memory embeddings
-                from sklearn.metrics.pairwise import cosine_similarity
-                semantic_scores = cosine_similarity([query_embedding], embeddings)[0]
+        # ── 3. Structured latency log ─────────────────────────────────────
+        log_route(query, decision, exec_ms, total_ms, len(results))
 
-        # 2. KEYWORD SEARCH (if alpha < 1 and BM25 available)
-        # At 21M articles, BM25 is skipped and alpha is forced to 1.0
-        if alpha < 1 and bm25 is not None:
-            # Tokenize query
-            tokenized_query = query.lower().split()
-
-            # Get BM25 scores
-            bm25_scores = bm25.get_scores(tokenized_query)
-
-            # Normalize BM25 scores to [0, 1]
-            if bm25_scores.max() > 0:
-                keyword_scores = bm25_scores / bm25_scores.max()
-            else:
-                keyword_scores = bm25_scores
-        elif alpha < 1 and bm25 is None:
-            # BM25 disabled at 21M: force semantic-only
-            alpha = 1.0
-            print(f"⚠ BM25 disabled (>1M articles): forcing semantic-only search")
-
-        # 3. HYBRID COMBINATION
-        # Combined score = alpha * semantic + (1 - alpha) * keyword
-        hybrid_scores = alpha * semantic_scores + (1 - alpha) * keyword_scores
-
-        # Get top k indices
-        top_indices = np.argsort(hybrid_scores)[::-1][:k]
-
-        # Build results
-        results = []
-        for idx in top_indices:
-            article_idx = int(idx)
-            if article_idx < len(data_df):
-                article = data_df.iloc[article_idx]
-                results.append({
-                    "headline": str(article.get('headline', '')),
-                    "snippet": str(article.get('abstract', ''))[:200],
-                    "section_name": str(article.get('section_name', '')),
-                    "pub_date": str(article.get('pub_date', '')),
-                    "hybrid_score": float(hybrid_scores[idx]),
-                    "semantic_score": float(semantic_scores[idx]) if alpha > 0 else None,
-                    "keyword_score": float(keyword_scores[idx]) if alpha < 1 else None,
-                    "_id": str(article.get('_id', ''))
-                })
-
+        # ── 4. Response ───────────────────────────────────────────────────
         return {
             "query": query,
             "total_found": len(results),
-            "search_mode": "semantic" if alpha == 1.0 else ("keyword" if alpha == 0.0 else "hybrid"),
-            "alpha": alpha,
-            "results": results
+            "results": results,
+            # routing metadata
+            "routing": {
+                "mode": resolved_mode.value,
+                "mode_source": "user_override" if override else "auto_router",
+                "confidence": decision.confidence,
+                "reason": decision.reason,
+                "routing_latency_ms": decision.latency_ms,
+            },
+            # performance
+            "latency": {
+                **timing,
+                "exec_ms": exec_ms,
+                "total_ms": total_ms,
+            },
         }
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Search failed: {exc}")
 
 
 @app.post("/topic/run")
@@ -538,6 +544,40 @@ async def get_sentiment_report(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Sentiment report failed: {str(e)}")
+
+
+# Cache monitoring endpoint
+@app.get("/cache/stats")
+async def get_cache_statistics():
+    """Get query embedding cache statistics"""
+    from src.models.embedding_cache import get_global_cache
+
+    cache = get_global_cache()
+    stats = cache.get_stats()
+
+    return {
+        "cache": {
+            "type": "QueryEmbeddingCache (TTL)",
+            "hits": stats['hits'],
+            "misses": stats['misses'],
+            "total_requests": stats['total_requests'],
+            "hit_rate": stats['hit_rate'],
+            "hit_rate_pct": stats['hit_rate_pct'],
+            "size": stats['cache_size'],
+            "maxsize": stats['cache_maxsize'],
+            "ttl_seconds": 3600,  # 1 hour
+        }
+    }
+
+
+@app.post("/cache/clear")
+async def clear_cache():
+    """Clear query embedding cache (admin endpoint)"""
+    from src.models.embedding_cache import reset_global_cache
+
+    reset_global_cache()
+
+    return {"message": "Cache cleared successfully"}
 
 
 # Additional utility endpoint
@@ -905,3 +945,105 @@ async def extract_books(
         import traceback
         error_detail = f"{str(e)}\n{traceback.format_exc()}"
         raise HTTPException(status_code=500, detail=f"Book extraction failed: {error_detail}")
+
+
+# ============================================================================
+# Server-Sent Events (SSE) Streaming Endpoints
+# ============================================================================
+
+@app.post("/books/extract/stream")
+async def extract_books_stream(
+    year: int = Query(..., description="Year to filter"),
+    section: str = Query("Books", description="Section to filter"),
+    limit: int = Query(10, description="Number of articles to process")
+):
+    """
+    Stream book extraction results as Server-Sent Events.
+
+    Returns tokens progressively as they're generated by OpenAI.
+    Provides real-time progress updates with first token < 500ms.
+
+    Args:
+        year: Year to filter articles
+        section: Section to filter
+        limit: Max articles to process (limits API costs)
+
+    Returns:
+        StreamingResponse with SSE events
+    """
+    if data_df is None:
+        raise HTTPException(status_code=503, detail="Data not loaded")
+
+    async def event_generator():
+        """Generate SSE events for streaming extraction."""
+        try:
+            # Filter data
+            filtered_df = data_df[
+                (data_df['year'] == year) &
+                (data_df['section_name'] == section)
+            ].copy()
+
+            if len(filtered_df) == 0:
+                yield format_sse_event("error", {
+                    "message": f"No articles found for year={year}, section={section}"
+                })
+                return
+
+            # Limit articles to avoid excessive API calls
+            filtered_df = filtered_df.head(limit)
+
+            # Prepare articles for streaming
+            articles = []
+            for idx, row in filtered_df.iterrows():
+                article_text = (
+                    str(row.get('headline', '')) + ' ' +
+                    str(row.get('abstract', ''))
+                )
+                articles.append({
+                    'id': f"article_{idx}",
+                    'text': article_text
+                })
+
+            # Stream extraction for all articles
+            async for event in stream_extract_batch(articles):
+                yield format_sse_event(event['type'], event['data'])
+
+        except Exception as e:
+            logger.error(f"Error in streaming extraction: {e}")
+            yield format_sse_event("error", {"message": str(e)})
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream"
+    )
+
+
+@app.post("/extract/stream")
+async def extract_single_stream(
+    text: str = Query(..., description="Text to extract from")
+):
+    """
+    Stream extraction for a single text as Server-Sent Events.
+
+    Real-time token streaming with progress indicators.
+
+    Args:
+        text: Article text to extract from
+
+    Returns:
+        StreamingResponse with SSE events
+    """
+    async def event_generator():
+        """Generate SSE events for single extraction."""
+        try:
+            async for event in stream_extract_article(text):
+                yield format_sse_event(event['type'], event['data'])
+
+        except Exception as e:
+            logger.error(f"Error in streaming extraction: {e}")
+            yield format_sse_event("error", {"message": str(e)})
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream"
+    )

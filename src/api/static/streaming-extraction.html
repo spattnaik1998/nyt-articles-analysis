@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streaming Book Extraction</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .controls {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .control-group input,
+        .control-group textarea,
+        .control-group button {
+            font-family: inherit;
+            font-size: 1em;
+        }
+
+        .control-group input[type="text"],
+        .control-group input[type="number"],
+        .control-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            transition: border-color 0.3s;
+        }
+
+        .control-group input[type="text"]:focus,
+        .control-group input[type="number"]:focus,
+        .control-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .control-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        button {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover:not(:disabled) {
+            background: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .results {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .results {
+                grid-template-columns: 1fr;
+            }
+
+            .control-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .stream-box {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .stream-box h2 {
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ddd;
+            animation: none;
+        }
+
+        .status-indicator.loading {
+            background: #667eea;
+            animation: pulse 1s infinite;
+        }
+
+        .status-indicator.done {
+            background: #10b981;
+        }
+
+        .status-indicator.error {
+            background: #ef4444;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .stream-content {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 5px;
+            padding: 15px;
+            min-height: 200px;
+            max-height: 500px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.95em;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .stream-content.empty {
+            color: #9ca3af;
+            font-style: italic;
+        }
+
+        /* Typing cursor animation */
+        .typing-cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1em;
+            background: #667eea;
+            margin-left: 2px;
+            animation: blink 1s infinite;
+            vertical-align: text-bottom;
+        }
+
+        @keyframes blink {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0;
+            }
+        }
+
+        .metrics {
+            margin-top: 15px;
+            padding: 10px;
+            background: #f3f4f6;
+            border-radius: 5px;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+
+        .metric-label {
+            font-weight: 600;
+        }
+
+        .metric-value {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .error-message {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            border-left: 4px solid #ef4444;
+        }
+
+        .success-message {
+            background: #dcfce7;
+            color: #166534;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            border-left: 4px solid #10b981;
+        }
+
+        .info-message {
+            background: #dbeafe;
+            color: #0c2340;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            border-left: 4px solid #3b82f6;
+        }
+
+        .article-section {
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 15px;
+            margin-bottom: 15px;
+        }
+
+        .article-section:last-child {
+            border-bottom: none;
+        }
+
+        .article-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .token-count {
+            font-size: 0.85em;
+            color: #999;
+            margin-top: 10px;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .results {
+                grid-template-columns: 1fr;
+            }
+
+            .stream-content {
+                max-height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📚 Streaming Book Extraction</h1>
+            <p>Real-time LLM response streaming with progressive token rendering</p>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="mode">Extraction Mode:</label>
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" id="modeToggle" style="flex: 1;">
+                        Switch to Batch Mode
+                    </button>
+                </div>
+            </div>
+
+            <!-- Single Mode -->
+            <div id="singleMode">
+                <div class="control-group">
+                    <label for="text">Text to Extract:</label>
+                    <textarea
+                        id="text"
+                        placeholder="Paste article text here..."
+                        rows="5"
+                    ></textarea>
+                </div>
+                <button id="extractBtn" type="button" onclick="streamSingle()">
+                    Stream Extraction
+                </button>
+            </div>
+
+            <!-- Batch Mode -->
+            <div id="batchMode" style="display: none;">
+                <div class="control-row">
+                    <div class="control-group">
+                        <label for="year">Year:</label>
+                        <input type="number" id="year" value="2020" min="1990" max="2030">
+                    </div>
+                    <div class="control-group">
+                        <label for="section">Section:</label>
+                        <input type="text" id="section" value="Books">
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label for="limit">Articles to Process:</label>
+                    <input type="number" id="limit" value="5" min="1" max="100">
+                </div>
+                <button id="batchExtractBtn" type="button" onclick="streamBatch()">
+                    Stream Batch Extraction
+                </button>
+            </div>
+        </div>
+
+        <div class="results">
+            <!-- Stream Output -->
+            <div class="stream-box">
+                <h2>
+                    <span class="status-indicator" id="statusIndicator"></span>
+                    Stream Output
+                </h2>
+                <div id="messages"></div>
+                <div id="streamContent" class="stream-content empty">
+                    Ready to stream...
+                </div>
+                <div id="metrics" class="metrics" style="display: none;">
+                    <div class="metric-row">
+                        <span class="metric-label">Tokens:</span>
+                        <span class="metric-value" id="tokenCount">0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Time:</span>
+                        <span class="metric-value" id="elapsedTime">0ms</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Speed:</span>
+                        <span class="metric-value" id="tokensPerSec">0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">First Token:</span>
+                        <span class="metric-value" id="firstTokenTime">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Parsed Results -->
+            <div class="stream-box">
+                <h2>
+                    <span class="status-indicator" id="resultStatusIndicator"></span>
+                    Parsed Results
+                </h2>
+                <div id="results"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let currentEventSource = null;
+        let streamMode = 'single'; // 'single' or 'batch'
+        let metrics = {
+            tokenCount: 0,
+            startTime: null,
+            firstTokenTime: null,
+            articles: {}
+        };
+
+        // UI References
+        const streamContent = document.getElementById('streamContent');
+        const messages = document.getElementById('messages');
+        const results = document.getElementById('results');
+        const metrics_el = document.getElementById('metrics');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const resultStatusIndicator = document.getElementById('resultStatusIndicator');
+        const modeToggle = document.getElementById('modeToggle');
+
+        // Mode toggle
+        modeToggle.onclick = () => {
+            streamMode = streamMode === 'single' ? 'batch' : 'single';
+            document.getElementById('singleMode').style.display = streamMode === 'single' ? 'block' : 'none';
+            document.getElementById('batchMode').style.display = streamMode === 'batch' ? 'block' : 'none';
+            modeToggle.textContent = streamMode === 'single' ? 'Switch to Batch Mode' : 'Switch to Single Mode';
+        };
+
+        // Reset UI
+        function resetUI() {
+            streamContent.innerHTML = '';
+            streamContent.classList.remove('empty');
+            messages.innerHTML = '';
+            results.innerHTML = '';
+            metrics_el.style.display = 'none';
+            metrics = {
+                tokenCount: 0,
+                startTime: null,
+                firstTokenTime: null,
+                articles: {}
+            };
+            updateStatus('idle');
+        }
+
+        // Update status indicator
+        function updateStatus(status) {
+            statusIndicator.className = 'status-indicator';
+            if (status === 'loading') {
+                statusIndicator.classList.add('loading');
+            } else if (status === 'done') {
+                statusIndicator.classList.add('done');
+            } else if (status === 'error') {
+                statusIndicator.classList.add('error');
+            }
+        }
+
+        // Add message
+        function addMessage(type, text) {
+            const div = document.createElement('div');
+            div.className = `${type}-message`;
+            div.textContent = text;
+            messages.appendChild(div);
+        }
+
+        // Update metrics display
+        function updateMetricsDisplay() {
+            const elapsed = metrics.startTime ? Date.now() - metrics.startTime : 0;
+            document.getElementById('tokenCount').textContent = metrics.tokenCount;
+            document.getElementById('elapsedTime').textContent = `${elapsed}ms`;
+            if (metrics.tokenCount > 0 && elapsed > 0) {
+                document.getElementById('tokensPerSec').textContent =
+                    (metrics.tokenCount / (elapsed / 1000)).toFixed(1);
+            }
+            if (metrics.firstTokenTime !== null) {
+                document.getElementById('firstTokenTime').textContent =
+                    `${metrics.firstTokenTime}ms`;
+            }
+            metrics_el.style.display = 'block';
+        }
+
+        // Stream single extraction
+        async function streamSingle() {
+            resetUI();
+            const text = document.getElementById('text').value;
+
+            if (!text.trim()) {
+                addMessage('error', 'Please enter text to extract from');
+                return;
+            }
+
+            updateStatus('loading');
+            addMessage('info', 'Starting streaming extraction...');
+
+            const url = `/extract/stream?text=${encodeURIComponent(text)}`;
+            streamEvents(url, 'single');
+        }
+
+        // Stream batch extraction
+        async function streamBatch() {
+            resetUI();
+            const year = document.getElementById('year').value;
+            const section = document.getElementById('section').value;
+            const limit = document.getElementById('limit').value;
+
+            updateStatus('loading');
+            addMessage('info', `Loading articles from ${year}, section: ${section}...`);
+
+            const url = `/books/extract/stream?year=${year}&section=${encodeURIComponent(section)}&limit=${limit}`;
+            streamEvents(url, 'batch');
+        }
+
+        // Stream events handler
+        function streamEvents(url, mode) {
+            if (currentEventSource) {
+                currentEventSource.close();
+            }
+
+            metrics.startTime = Date.now();
+            currentEventSource = new EventSource(url);
+
+            currentEventSource.onopen = () => {
+                addMessage('info', 'Connected to streaming endpoint');
+            };
+
+            // Handle different event types
+            currentEventSource.addEventListener('start', (event) => {
+                const data = JSON.parse(event.data);
+                if (mode === 'batch') {
+                    addMessage('info', `Starting extraction of ${data.total_articles} articles...`);
+                }
+            });
+
+            currentEventSource.addEventListener('token', (event) => {
+                const data = JSON.parse(event.data);
+                const token = data.token;
+
+                // Track first token
+                if (metrics.tokenCount === 0 && metrics.firstTokenTime === null) {
+                    metrics.firstTokenTime = Date.now() - metrics.startTime;
+                }
+
+                metrics.tokenCount++;
+
+                // Append token to stream content
+                if (metrics.tokenCount === 1) {
+                    streamContent.innerHTML = token;
+                } else {
+                    streamContent.innerHTML += token;
+                }
+
+                // Scroll to bottom
+                streamContent.scrollTop = streamContent.scrollHeight;
+
+                // Update metrics every 10 tokens
+                if (metrics.tokenCount % 10 === 0) {
+                    updateMetricsDisplay();
+                }
+            });
+
+            currentEventSource.addEventListener('complete', (event) => {
+                const data = JSON.parse(event.data);
+                const response = data.response;
+
+                // Try to parse as JSON
+                try {
+                    const parsed = JSON.parse(response);
+                    displayParsedResult(parsed);
+                } catch (e) {
+                    // Raw response
+                    results.innerHTML += `<div class="info-message">Raw Response: ${response}</div>`;
+                }
+
+                updateMetricsDisplay();
+                addMessage('success', `Completed in ${data.total_ms}ms`);
+                updateStatus('done');
+            });
+
+            currentEventSource.addEventListener('article_start', (event) => {
+                const data = JSON.parse(event.data);
+                const articleDiv = document.createElement('div');
+                articleDiv.className = 'article-section';
+                articleDiv.innerHTML = `<div class="article-title">Article #${data.article_number}</div>`;
+                results.appendChild(articleDiv);
+            });
+
+            currentEventSource.addEventListener('batch_start', (event) => {
+                const data = JSON.parse(event.data);
+                addMessage('info', `Processing ${data.total_articles} articles...`);
+            });
+
+            currentEventSource.addEventListener('batch_end', (event) => {
+                const data = JSON.parse(event.data);
+                addMessage('success', `Processed ${data.processed_articles} articles`);
+            });
+
+            currentEventSource.addEventListener('error', (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    addMessage('error', `Error: ${data.message}`);
+                } catch (e) {
+                    addMessage('error', 'Connection error or stream ended');
+                }
+                updateStatus('error');
+                currentEventSource.close();
+            });
+
+            // Handle errors
+            currentEventSource.onerror = (e) => {
+                console.error('EventSource error:', e);
+                addMessage('error', 'Connection lost');
+                updateStatus('error');
+                currentEventSource.close();
+            };
+        }
+
+        // Display parsed result
+        function displayParsedResult(parsed) {
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'info-message';
+
+            let content = '';
+            if (parsed.book_title) {
+                content += `<strong>Title:</strong> ${parsed.book_title}<br>`;
+            }
+            if (parsed.author_name) {
+                content += `<strong>Author:</strong> ${parsed.author_name}<br>`;
+            }
+            if (parsed.confidence) {
+                content += `<strong>Confidence:</strong> ${parsed.confidence}`;
+            }
+
+            if (content) {
+                resultDiv.innerHTML = content;
+                results.appendChild(resultDiv);
+            }
+        }
+    </script>
+</body>
+</html>
